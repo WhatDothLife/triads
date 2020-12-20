@@ -58,15 +58,15 @@ impl Triad {
 
                 if j == 0 {
                     if *v {
-                        list.insert_edge(&0, &node_id);
-                    } else {
                         list.insert_edge(&node_id, &0);
+                    } else {
+                        list.insert_edge(&0, &node_id);
                     }
                 } else {
                     if *v {
-                        list.insert_edge(&(node_id - 1), &node_id);
-                    } else {
                         list.insert_edge(&node_id, &(node_id - 1));
+                    } else {
+                        list.insert_edge(&(node_id - 1), &node_id);
                     }
                 }
                 node_id += 1;
