@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::iter::FromIterator;
 use std::sync::{Arc, RwLock};
+use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashSet, hash::Hash};
+use std::{fmt::Display, iter::FromIterator};
 
 #[derive(Clone, Debug)]
 pub struct Set<T: Eq> {
@@ -27,6 +27,10 @@ impl<T: Eq> Set<T> {
 
     fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.items.iter()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
     }
 }
 
@@ -225,4 +229,174 @@ where
     }
 
     f
+}
+
+// Implementation of the AC-3 algorithm by Mackworth 1977
+// Returns None, if an empty domain is derived
+pub fn ac_3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Copy + Hash + Debug + Display,
+    V1: Eq + Copy + Hash + Debug + Display,
+{
+    // list of vertices from g1 for each vertex of g0
+    let mut f = HashMap::new();
+
+    for v0 in g0.vertex_iter() {
+        f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
+    }
+
+    let edges = g0.edge_vec();
+    let mut worklist = DedupList::<(V0, V0, bool)>::new();
+
+    for (x, y) in edges.iter().cloned() {
+        worklist.push((x, y, false));
+        worklist.push((y, x, true));
+    }
+
+    // list of worklist items for each vertex of g0
+    // they're added to worklist, if the domain of the respective vertex changed
+    let mut items = HashMap::new();
+    for v in g0.vertex_iter() {
+        items.insert(*v, Vec::<(V0, V0, bool)>::new());
+    }
+    for (x, y, dir) in worklist.iter().cloned() {
+        items.get_mut(&y).unwrap().push((x, y, dir));
+    }
+
+    while !worklist.is_empty() {
+        let (x, y, dir) = worklist.pop().unwrap();
+
+        if dir {
+            // backward-edge
+            if arc_reduce_backward(x, y, &mut f, &g1) {
+                // domain of y changed, was the emtpy list derived?
+                if f.get(&y).unwrap().is_empty() {
+                    return None;
+                } else {
+                    worklist.append_list(items.get(&x).unwrap());
+                }
+            }
+        } else {
+            // forward-edge
+            if arc_reduce_forward(x, y, &mut f, &g1) {
+                // domain of x changed, was the emtpy list derived?
+                if f.get(&x).unwrap().is_empty() {
+                    return None;
+                } else {
+                    // worklist.extend(items.get(&x).iter().cloned());
+                    worklist.append_list(items.get(&x).unwrap());
+                }
+            }
+        }
+    }
+    Some(f)
+}
+
+// This function implements the arc-reduce operation
+// As its arguments it takes:
+// - Two vertices x, y
+// - A domain f for elements x, y (also known as lists)
+// - A graph g1 as an R2-constraint
+// It outputs a boolean, that tells whether the domain of x was reduced
+pub fn arc_reduce_forward<V0, V1>(
+    x: V0,
+    y: V0,
+    f: &mut HashMap<V0, Set<V1>>,
+    g1: &AdjacencyList<V1>,
+) -> bool
+where
+    V0: Eq + Copy + Hash + Display,
+    V1: Eq + Copy + Hash + Display,
+{
+    let mut changed = false;
+    for vx in f.get(&x).unwrap().clone().iter() {
+        let mut is_possible = false;
+        for vy in f.get(&y).unwrap().iter() {
+            if g1.contains_edge(vx, vy) {
+                is_possible = true;
+                break;
+            }
+        }
+
+        if !is_possible {
+            f.get_mut(&x).unwrap().remove(&vx);
+            changed = true;
+        }
+    }
+    changed
+}
+// TODO merge two arc_reduce methods
+// by passing the edge direction boolean
+pub fn arc_reduce_backward<V0, V1>(
+    x: V0,
+    y: V0,
+    f: &mut HashMap<V0, Set<V1>>,
+    g1: &AdjacencyList<V1>,
+) -> bool
+where
+    V0: Eq + Copy + Hash + Display,
+    V1: Eq + Copy + Hash + Display,
+{
+    let mut changed = false;
+    for vx in f.get(&x).unwrap().clone().iter() {
+        let mut is_possible = false;
+        for vy in f.get(&y).unwrap().iter() {
+            // if dir {}
+            if g1.contains_edge(vy, vx) {
+                is_possible = true;
+                break;
+            }
+        }
+
+        if !is_possible {
+            f.get_mut(&x).unwrap().remove(&vx);
+            changed = true;
+        }
+    }
+    changed
+}
+
+#[derive(Clone, Debug)]
+pub struct DedupList<T: Eq> {
+    items: Vec<T>,
+}
+
+impl<T: Eq + Copy> DedupList<T> {
+    fn new() -> Self {
+        DedupList { items: Vec::new() }
+    }
+
+    fn push(&mut self, x: T) {
+        if !self.contains(&x) {
+            self.items.push(x);
+        }
+    }
+
+    fn pop(&mut self) -> Option<T> {
+        self.items.pop()
+    }
+
+    fn contains(&self, x: &T) -> bool {
+        self.items.contains(x)
+    }
+
+    fn append(&mut self, q: &Self) {
+        for item in q.iter().cloned() {
+            self.push(item);
+        }
+    }
+
+    fn append_list(&mut self, q: &Vec<T>) {
+        for item in q.iter().cloned() {
+            self.push(item);
+        }
+    }
+
+    fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+        self.items.iter()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
 }
