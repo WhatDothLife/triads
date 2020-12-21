@@ -1,6 +1,4 @@
-use std::sync::{Arc, RwLock};
-use std::{collections::HashMap, fmt::Debug};
-use std::{collections::HashSet, hash::Hash};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use std::{fmt::Display, iter::FromIterator};
 
 #[derive(Clone, Debug)]
@@ -95,7 +93,7 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
         self.adjacency_list.keys()
     }
 
-    fn edge_vec(&self) -> Vec<(T, T)> {
+    pub fn edge_vec(&self) -> Vec<(T, T)> {
         self.vertex_iter()
             .map(|u| {
                 self.adjacency_list
@@ -242,8 +240,11 @@ where
     let mut f = HashMap::new();
 
     for v0 in g0.vertex_iter() {
-        f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
+        // println!("Hash of {}: {}", *v0, hash(*v0));
+        let present = f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
+        println!("{:?}", present);
     }
+    println!("{:?}", &f);
 
     let edges = g0.edge_vec();
     let mut worklist = DedupList::<(V0, V0, bool)>::new();
@@ -266,26 +267,12 @@ where
     while !worklist.is_empty() {
         let (x, y, dir) = worklist.pop().unwrap();
 
-        if dir {
-            // backward-edge
-            if arc_reduce_backward(x, y, &mut f, &g1) {
-                // domain of y changed, was the emtpy list derived?
-                if f.get(&y).unwrap().is_empty() {
-                    return None;
-                } else {
-                    worklist.append_list(items.get(&x).unwrap());
-                }
-            }
-        } else {
-            // forward-edge
-            if arc_reduce_forward(x, y, &mut f, &g1) {
-                // domain of x changed, was the emtpy list derived?
-                if f.get(&x).unwrap().is_empty() {
-                    return None;
-                } else {
-                    // worklist.extend(items.get(&x).iter().cloned());
-                    worklist.append_list(items.get(&x).unwrap());
-                }
+        if arc_reduce(x, y, dir, &mut f, &g1) {
+            // domain of x changed, was the emtpy list derived?
+            if f.get(&x).unwrap().is_empty() {
+                return None;
+            } else {
+                worklist.append_list(items.get(&x).unwrap());
             }
         }
     }
@@ -298,9 +285,10 @@ where
 // - A domain f for elements x, y (also known as lists)
 // - A graph g1 as an R2-constraint
 // It outputs a boolean, that tells whether the domain of x was reduced
-pub fn arc_reduce_forward<V0, V1>(
+pub fn arc_reduce<V0, V1>(
     x: V0,
     y: V0,
+    dir: bool,
     f: &mut HashMap<V0, Set<V1>>,
     g1: &AdjacencyList<V1>,
 ) -> bool
@@ -312,9 +300,16 @@ where
     for vx in f.get(&x).unwrap().clone().iter() {
         let mut is_possible = false;
         for vy in f.get(&y).unwrap().iter() {
-            if g1.contains_edge(vx, vy) {
-                is_possible = true;
-                break;
+            if dir {
+                if g1.contains_edge(vy, vx) {
+                    is_possible = true;
+                    break;
+                }
+            } else {
+                if g1.contains_edge(vx, vy) {
+                    is_possible = true;
+                    break;
+                }
             }
         }
 
@@ -325,37 +320,38 @@ where
     }
     changed
 }
-// TODO merge two arc_reduce methods
-// by passing the edge direction boolean
-pub fn arc_reduce_backward<V0, V1>(
-    x: V0,
-    y: V0,
-    f: &mut HashMap<V0, Set<V1>>,
-    g1: &AdjacencyList<V1>,
-) -> bool
-where
-    V0: Eq + Copy + Hash + Display,
-    V1: Eq + Copy + Hash + Display,
-{
-    let mut changed = false;
-    for vx in f.get(&x).unwrap().clone().iter() {
-        let mut is_possible = false;
-        for vy in f.get(&y).unwrap().iter() {
-            // if dir {}
-            if g1.contains_edge(vy, vx) {
-                is_possible = true;
-                break;
-            }
-        }
+// // TODO merge two arc_reduce methods
+// // by passing the edge direction boolean
+// pub fn arc_reduce_backward<V0, V1>(
+//     x: V0,
+//     y: V0,
+//     f: &mut HashMap<V0, Set<V1>>,
+//     g1: &AdjacencyList<V1>,
+// ) -> bool
+// where
+//     V0: Eq + Copy + Hash + Display,
+//     V1: Eq + Copy + Hash + Display,
+// {
+//     let mut changed = false;
+//     for vx in f.get(&x).unwrap().clone().iter() {
+//         let mut is_possible = false;
+//         for vy in f.get(&y).unwrap().iter() {
+//             // if dir {}
+//             if g1.contains_edge(vy, vx) {
+//                 is_possible = true;
+//                 break;
+//             }
+//         }
 
-        if !is_possible {
-            f.get_mut(&x).unwrap().remove(&vx);
-            changed = true;
-        }
-    }
-    changed
-}
+//         if !is_possible {
+//             f.get_mut(&x).unwrap().remove(&vx);
+//             changed = true;
+//         }
+//     }
+//     changed
+// }
 
+// A vector that doesn't contain any duplicates
 #[derive(Clone, Debug)]
 pub struct DedupList<T: Eq> {
     items: Vec<T>,
