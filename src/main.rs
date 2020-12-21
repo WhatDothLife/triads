@@ -1,4 +1,7 @@
-use Bachelorarbeit::{arc_consistency::*, core_triads::Triad};
+use triads::{
+    arc_consistency::{ac_3, arc_consistency, AdjacencyList},
+    core_triads::Triad,
+};
 
 fn main() {
     // let mut h = AdjacencyList::<u32>::new();
@@ -25,7 +28,9 @@ fn main() {
     // g.insert_edge(&50, &40);
 
     // let l = ac_3(&h, &g);
+    // let l2 = arc_consistency(&h, &g);
     // println!("{:?}", &l);
+    // println!("{:?}", &l2);
 
     // let triad = Triad::from_vecs(
     //     vec![true, true],
@@ -33,11 +38,11 @@ fn main() {
     //     vec![true, false, false, false],
     // );
 
-    let triad = Triad::from_strings("1", "00", "0111");
-
+    let triad = Triad::from_strings("0100", "01100", "000100");
     let list = triad.adjacency_list();
-    let l2 = arc_consistency(&list, &list);
+
     let l3 = ac_3(&list, &list);
-    println!("{:?}", &l2);
     println!("{:?}", &l3);
+    let l2 = arc_consistency(&list, &list);
+    println!("{:?}", &l2);
 }
