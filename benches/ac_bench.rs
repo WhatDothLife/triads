@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use Bachelorarbeit::{arc_consistency::ac_3, arc_consistency::arc_consistency, core_triads::Triad};
+use triads::{arc_consistency::ac_3, arc_consistency::arc_consistency, core_triads::Triad};
 
 fn fibonacci(n: u64) -> u64 {
     match n {
@@ -10,7 +10,11 @@ fn fibonacci(n: u64) -> u64 {
 }
 
 fn ac_benchmark(c: &mut Criterion) {
-    let triad = Triad::from_strings("01001111011", "0110000011", "1010000100");
+    let triad = Triad::from_strings(
+        "0100111101101001111011",
+        "01100000110110000011",
+        "10100001001010000100",
+    );
     let list = triad.adjacency_list();
 
     // c.bench_function("ac-3", |b| b.iter(|| fibonacci(black_box(20))));
@@ -20,7 +24,11 @@ fn ac_benchmark(c: &mut Criterion) {
 }
 
 fn ac3_benchmark(c: &mut Criterion) {
-    let triad = Triad::from_strings("01001111011", "0110000011", "1010000100");
+    let triad = Triad::from_strings(
+        "0100111101101001111011",
+        "01100000110110000011",
+        "10100001001010000100",
+    );
     let list = triad.adjacency_list();
 
     c.bench_function("arc_consistency", |b| {

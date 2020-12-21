@@ -40,6 +40,7 @@ impl<T: Eq> FromIterator<T> for Set<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct AdjacencyList<T: Eq + Hash> {
     //                 Vertex -> (Out-Edges, In-Edges)
     adjacency_list: HashMap<T, (Set<T>, Set<T>)>,
@@ -242,9 +243,9 @@ where
     for v0 in g0.vertex_iter() {
         // println!("Hash of {}: {}", *v0, hash(*v0));
         let present = f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
-        println!("{:?}", present);
+        // println!("{:?}", present);
     }
-    println!("{:?}", &f);
+    // println!("{:?}", &f);
 
     let edges = g0.edge_vec();
     let mut worklist = DedupList::<(V0, V0, bool)>::new();
