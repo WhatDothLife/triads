@@ -2,7 +2,7 @@
 
 use crate::arc_consistency::AdjacencyList;
 
-// Wrapper struct around tuple of Vec<bool>
+#[derive(Debug)]
 pub struct Triad(Vec<Vec<bool>>);
 
 impl Triad {
