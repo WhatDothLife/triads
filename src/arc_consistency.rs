@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, collections::HashSet, fmt::Debug, hash::Hash};
 use std::{fmt::Display, iter::FromIterator};
 
 #[derive(Clone, Debug)]
@@ -231,21 +231,24 @@ where
 }
 
 // Implementation of the AC-3 algorithm by Mackworth 1977
-// Returns None, if an empty domain is derived
-pub fn ac_3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+// specialized to find graph homomorphisms
+// f represents an unary constraint (a list of vertices) for each vertex of g0
+// If there's no list specified for a vertex v, a list of all nodes of g1 is assigned to v
+// Returns None, if an empty domain is derived for some vertex v
+pub fn ac_3<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    mut f: HashMap<V0, Set<V1>>,
+) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Copy + Hash + Debug + Display,
     V1: Eq + Copy + Hash + Debug + Display,
 {
-    // list of vertices from g1 for each vertex of g0
-    let mut f = HashMap::new();
-
     for v0 in g0.vertex_iter() {
-        // println!("Hash of {}: {}", *v0, hash(*v0));
-        let present = f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
-        // println!("{:?}", present);
+        if !f.contains_key(&v0) {
+            f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
+        }
     }
-    // println!("{:?}", &f);
 
     let edges = g0.edge_vec();
     let mut worklist = DedupList::<(V0, V0, bool)>::new();
@@ -266,6 +269,8 @@ where
     }
 
     while !worklist.is_empty() {
+        // let (x, y, dir) = worklist.iter().cloned().next().unwrap();
+        // worklist.remove(&(x, y, dir));
         let (x, y, dir) = worklist.pop().unwrap();
 
         if arc_reduce(x, y, dir, &mut f, &g1) {
@@ -273,7 +278,10 @@ where
             if f.get(&x).unwrap().is_empty() {
                 return None;
             } else {
-                worklist.append_list(items.get(&x).unwrap());
+                // for item in items.get(&x).unwrap().iter().cloned() {
+                //     worklist.insert(item);
+                // }
+                worklist.append_list(&(items.get(&x).unwrap()));
             }
         }
     }
