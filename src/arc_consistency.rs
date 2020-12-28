@@ -7,11 +7,11 @@ pub struct Set<T: Eq> {
 }
 
 impl<T: Eq> Set<T> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Set { items: Vec::new() }
     }
 
-    fn insert(&mut self, x: T) {
+    pub fn insert(&mut self, x: T) {
         self.items.push(x);
     }
 
@@ -23,11 +23,15 @@ impl<T: Eq> Set<T> {
         self.items.contains(x)
     }
 
+    pub fn size(&self) -> usize {
+        self.items.len()
+    }
+
     fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.items.iter()
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 }
@@ -230,19 +234,19 @@ where
     f
 }
 
-// Implementation of the AC-3 algorithm by Mackworth 1977
-// specialized to find graph homomorphisms
+// Implementation of the AC-3 algorithm by Mackworth 1977...
+// ...specialized to find graph homomorphisms
 // f represents an unary constraint (a list of vertices) for each vertex of g0
 // If there's no list specified for a vertex v, a list of all nodes of g1 is assigned to v
 // Returns None, if an empty domain is derived for some vertex v
-pub fn ac_3<V0, V1>(
+pub fn ac3_precolor<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: HashMap<V0, Set<V1>>,
 ) -> Option<HashMap<V0, Set<V1>>>
 where
-    V0: Eq + Copy + Hash + Debug + Display,
-    V1: Eq + Copy + Hash + Debug + Display,
+    V0: Eq + Copy + Hash,
+    V1: Eq + Copy + Hash,
 {
     for v0 in g0.vertex_iter() {
         if !f.contains_key(&v0) {
@@ -251,7 +255,7 @@ where
     }
 
     let edges = g0.edge_vec();
-    let mut worklist = DedupList::<(V0, V0, bool)>::new();
+    let mut worklist = DedupList::<(V0, V0, bool)>::new(); // TODO use HashSet here
 
     for (x, y) in edges.iter().cloned() {
         worklist.push((x, y, false));
@@ -288,6 +292,20 @@ where
     Some(f)
 }
 
+// Since ac3 is a specialized version of ac3_precolor
+// we simply call the latter with an empty HashMap
+pub fn ac3<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    // mut f: HashMap<V0, Set<V1>>,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Copy + Hash,
+    V1: Eq + Copy + Hash,
+{
+    ac3_precolor(g0, g1, HashMap::new())
+}
+
 // This function implements the arc-reduce operation
 // As its arguments it takes:
 // - Two vertices x, y
@@ -302,8 +320,8 @@ pub fn arc_reduce<V0, V1>(
     g1: &AdjacencyList<V1>,
 ) -> bool
 where
-    V0: Eq + Copy + Hash + Display,
-    V1: Eq + Copy + Hash + Display,
+    V0: Eq + Copy + Hash,
+    V1: Eq + Copy + Hash,
 {
     let mut changed = false;
     for vx in f.get(&x).unwrap().clone().iter() {
@@ -329,38 +347,9 @@ where
     }
     changed
 }
-// // TODO merge two arc_reduce methods
-// // by passing the edge direction boolean
-// pub fn arc_reduce_backward<V0, V1>(
-//     x: V0,
-//     y: V0,
-//     f: &mut HashMap<V0, Set<V1>>,
-//     g1: &AdjacencyList<V1>,
-// ) -> bool
-// where
-//     V0: Eq + Copy + Hash + Display,
-//     V1: Eq + Copy + Hash + Display,
-// {
-//     let mut changed = false;
-//     for vx in f.get(&x).unwrap().clone().iter() {
-//         let mut is_possible = false;
-//         for vy in f.get(&y).unwrap().iter() {
-//             // if dir {}
-//             if g1.contains_edge(vy, vx) {
-//                 is_possible = true;
-//                 break;
-//             }
-//         }
-
-//         if !is_possible {
-//             f.get_mut(&x).unwrap().remove(&vx);
-//             changed = true;
-//         }
-//     }
-//     changed
-// }
 
 // A vector that doesn't contain any duplicates
+// This data structure might be dropped in favor of HashSet
 #[derive(Clone, Debug)]
 pub struct DedupList<T: Eq> {
     items: Vec<T>,
