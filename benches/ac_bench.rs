@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use triads::{arc_consistency::ac_3, arc_consistency::arc_consistency, core_triads::Triad};
+use triads::{arc_consistency::ac3_precolor, arc_consistency::arc_consistency, core_triads::Triad};
 
 fn ac_benchmark(c: &mut Criterion) {
     let triad = Triad::from_strings(
@@ -12,7 +12,7 @@ fn ac_benchmark(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac-3", |b| {
-        b.iter(|| ac_3(black_box(&list), black_box(&list), HashMap::new()))
+        b.iter(|| ac3_precolor(black_box(&list), black_box(&list), HashMap::new()))
     });
 }
 
