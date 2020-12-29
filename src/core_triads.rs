@@ -1,46 +1,73 @@
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Add,
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::arc_consistency::{ac3, ac3_precolor, AdjacencyList, Set};
 
+/// A triad graph implemented as a wrapper around a `Vec<String>`.
+///
+/// Each String in the Vector represents a path that leaves the
+/// vertex of degree 3 of the triad. '0' stands for
+/// forward edge and '1' for backward edge.
+///
+/// Note that we don't restrict the triad to have exactly three arms.
+/// Instead there must be at most three arms, and every triad that has less
+/// can be considered a "partial triad".
 #[derive(Debug)]
 pub struct Triad(Vec<String>);
 
 impl Triad {
-    fn new() -> Triad {
+    /// Creates a new empty `Triad`.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// let t = Triad::new();
+    /// ```
+    pub fn new() -> Triad {
         Triad(Vec::<String>::new())
     }
 
-    pub fn from_str(a: &str) -> Triad {
-        Triad(vec![a.to_string()])
-    }
-
+    /// Creates a new `Triad` from `str`s.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// let t = Triad::from_strs("0", "1", "00");
+    /// ```
     pub fn from_strs(a: &str, b: &str, c: &str) -> Triad {
         Triad(vec![a.to_string(), b.to_string(), c.to_string()])
     }
 
-    fn merge(t1: &Triad, t2: &Triad) -> Triad {
-        let mut vec = Vec::<String>::new();
-        vec.append(&mut t1.0.clone());
-        vec.append(&mut t2.0.clone());
-        Triad(vec)
-    }
-
-    // Adds an arm to the triad
-    fn push_arm(&mut self, arm: String) {
+    /// Adds an arm to the triad.
+    ///
+    /// # Panics
+    ///
+    /// Panics, if the triad already has 3 arms.
+    pub fn add_arm(&mut self, arm: &str) {
         if self.0.len() == 3 {
             panic!("Triad already has 3 arms!");
         } else {
-            self.0.push(arm);
+            self.0.push(arm.to_string());
         }
     }
 
-    fn is_rcp(&self) -> bool {
+    /// Returns `true` if this triad is a rooted core, and `false` otherwise.
+    ///
+    /// A rooted core is a triad for which id is the only automorphism, if you restrict
+    /// vertex 0 to be mapped to itself.
+    ///
+    /// # Examples
+    /// ```
+    /// let t = Triad::new();
+    /// t.add_arm("100");
+    /// asserteq!(false, t.is_core());
+    /// asserteq!(true, t.is_rooted_core());
+    /// ```
+    pub fn is_rooted_core(&self) -> bool {
         let list = self.adjacency_list();
-        let map = ac3_precolor_root(&list).unwrap();
-        for (k, v) in map {
+        let map = ac3_precolor_0(&list).unwrap();
+        for (_, v) in map {
             if v.size() != 1 {
                 return false;
             }
@@ -48,7 +75,14 @@ impl Triad {
         true
     }
 
-    fn is_core(&self) -> bool {
+    /// Returns `true` if this triad is a core, and `false` otherwise.
+    ///
+    /// # Examples
+    /// ```
+    /// let t = Triad::from_strs("0", "11", "1000");
+    /// asserteq!(true, t.is_core());
+    /// ```
+    pub fn is_core(&self) -> bool {
         let list = self.adjacency_list();
         let map = ac3(&list, &list).unwrap();
         for (_, v) in map {
@@ -59,6 +93,7 @@ impl Triad {
         true
     }
 
+    /// Returns an adjacency list of the triad. The root is labeled with 0.
     pub fn adjacency_list(&self) -> AdjacencyList<u32> {
         let mut list = AdjacencyList::<u32>::new();
         let mut node_id: u32 = 1;
@@ -87,20 +122,23 @@ impl Triad {
         }
         list
     }
+
+    // Merges two triads and returns a new triad
+    // TODO implement by overloading Add, Caution: Fancy
+    fn merge(&self, other: &Triad) -> Triad {
+        if self.0.len() + other.0.len() > 3 {
+            panic!("Triad cannot have more than 3 arms!");
+        }
+        let mut vec = Vec::<String>::new();
+        vec.append(&mut self.0.clone());
+        vec.append(&mut other.0.clone());
+        Triad(vec)
+    }
 }
 
-// impl Add for Triad {
-//     type Output = Triad;
-
-//     fn add(self, other: Triad) -> Triad {
-//         let vec = self.0.append(&mut (other.0.clone()));
-//         Triad(vec)
-//     }
-// }
-
 // A variant of precoloured AC, that restricts
-// the domain of vertex 0 to itself
-fn ac3_precolor_root(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
+// the domain of vertex 0 to itself.
+fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     let mut set = Set::<u32>::new();
     set.insert(0);
 
@@ -111,60 +149,58 @@ fn ac3_precolor_root(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
 }
 
 // TODO Think of consistent names
-pub fn cores(maxlength: u32) -> Vec<Triad> {
-    // Find a list of RCPs
-    let mut pathlist = Vec::<Triad>::new();
+pub fn cores(max_length: u32) -> Vec<Triad> {
+    // Find a list of RCAs
+    let mut arm_list = Vec::<Triad>::new();
 
-    for len in 1..=maxlength {
+    for len in 1..=max_length {
         let arms = arms(len);
 
         for arm in arms.iter() {
-            let triad = Triad::from_str(arm);
-            if triad.is_rcp() {
+            let mut triad = Triad::new();
+            triad.add_arm(arm);
+            if triad.is_rooted_core() {
                 println!("Pushing {:?} on the pathlist.", &triad);
-                pathlist.push(triad);
+                arm_list.push(triad);
             }
         }
     }
-    println!("Calculated pathlist!");
 
-    // Assemble the RCPs to core triads
-    let mut triadlist = Vec::<Triad>::new();
-    // Cached pairs of RCPs that cannot form a core triad
-    let mut cache = Cache::new();
+    // Assemble the RCAs to core triads
+    let pairs = pairs(arm_list.len() as u32);
+    // Cached pairs of RCAs that cannot form a core triad
+    let mut pair_cache = Cache::new();
 
-    let pairs = pairs(pathlist.len() as u32);
     for (a, b) in pairs.iter() {
-        let ref t1 = &pathlist[*a as usize];
-        let ref t2 = &pathlist[*b as usize];
-        let t = Triad::merge(&t1, &t2);
-        if !t.is_rcp() {
-            cache.insert((*a, *b));
+        let ref t1 = &arm_list[*a as usize];
+        let ref t2 = &arm_list[*b as usize];
+        let t = t1.merge(&t2);
+        if !t.is_rooted_core() {
+            pair_cache.insert((*a, *b));
         }
     }
 
-    let triplets = triplets(pathlist.len() as u32);
+    let triplets = triplets(arm_list.len() as u32);
+    let mut triadlist = Vec::<Triad>::new();
 
     for (a, b, c) in triplets.iter() {
-        if cache.cached((*a, *b, *c)) {
+        if pair_cache.cached((*a, *b, *c)) {
             continue;
         } else {
-            let ref t1 = &pathlist[*a as usize];
-            let ref t2 = &pathlist[*b as usize];
-            let ref t3 = &pathlist[*c as usize];
-            let triad = Triad::merge(&Triad::merge(t1, t2), t3);
+            let ref t1 = &arm_list[*a as usize];
+            let ref t2 = &arm_list[*b as usize];
+            let ref t3 = &arm_list[*c as usize];
+            let triad = t1.merge(&t2).merge(&t3);
             if triad.is_core() {
                 println!("Pushed {:?} onto the triadlist!", &triad);
                 triadlist.push(triad);
             }
         }
     }
-
-    // triadlist = triadlist.into_iter().filter(|t| t.is_core()).collect();
-
     triadlist
 }
 
+// Cache to store pairs of RCAs that cannot form a core triad
 struct Cache(HashSet<(u32, u32)>);
 
 impl Cache {
@@ -189,9 +225,15 @@ impl Cache {
 }
 
 // Returns all sorted triplets of all numbers smaller than n
-// without duplicate elements e.g. let n = 3 then
-// only [(0, 1, 2)] is returned
-pub fn triplets(n: u32) -> Vec<(u32, u32, u32)> {
+// without duplicate elements
+//
+// # Example
+//
+// ```
+// let t = triplets(3);
+// asserteq!(t, [(0, 1, 2)]);
+// ```
+fn triplets(n: u32) -> Vec<(u32, u32, u32)> {
     assert!(n > 2, "n must be greater than 2!");
     let mut triplets = Vec::<(u32, u32, u32)>::new();
     for a in 0..(n - 2) {
@@ -204,7 +246,15 @@ pub fn triplets(n: u32) -> Vec<(u32, u32, u32)> {
     triplets
 }
 
-// Merge with function above
+// Returns all sorted pairs of all numbers smaller than n
+// without duplicate elements
+//
+// # Example
+//
+// ```
+// let p = pairs(3);
+// asserteq!(p, [(0, 1), (0, 2), (1, 2)]);
+// ```
 fn pairs(n: u32) -> Vec<(u32, u32)> {
     assert!(n > 1, "n must be greater than 1!");
     let mut pairs = Vec::<(u32, u32)>::new();
@@ -216,15 +266,15 @@ fn pairs(n: u32) -> Vec<(u32, u32)> {
     pairs
 }
 
-// Returns all arms of length len
-pub fn arms(len: u32) -> Vec<String> {
+// Returns all strings of '0' and '1' of length len
+fn arms(len: u32) -> Vec<String> {
     let mut vec = Vec::<String>::new();
     vec.push("".to_string());
     arms_h(vec, len)
 }
 
-// Lazy recursive implementation by cloning the n-1 strings
-// and appending 0 and 1 to each of them
+// Recursive helper function that clones all of the n-1 strings
+// and appends 0 and 1 to each of them
 fn arms_h(a: Vec<String>, mut len: u32) -> Vec<String> {
     if len == 0 {
         return a;
