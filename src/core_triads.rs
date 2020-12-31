@@ -1,6 +1,7 @@
+use crate::arc_consistency::{ac3, ac3_precolor, AdjacencyList, Set};
 use std::collections::{HashMap, HashSet};
 
-use crate::arc_consistency::{ac3, ac3_precolor, AdjacencyList, Set};
+use serde::{Deserialize, Serialize};
 
 /// A triad graph implemented as a wrapper around a `Vec<String>`.
 ///
@@ -11,7 +12,7 @@ use crate::arc_consistency::{ac3, ac3_precolor, AdjacencyList, Set};
 /// Note that we don't restrict the triad to have exactly three arms.
 /// Instead there must be at most three arms, and every triad that has less
 /// can be considered a "partial triad".
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Triad(Vec<String>);
 
 impl Triad {
@@ -169,14 +170,14 @@ pub fn cores(max_length: u32) -> Vec<Triad> {
     // Assemble the RCAs to core triads
     let pairs = pairs(arm_list.len() as u32);
     // Cached pairs of RCAs that cannot form a core triad
-    let mut pair_cache = Cache::new();
+    let mut cache = Cache::new();
 
     for (a, b) in pairs.iter() {
         let ref t1 = &arm_list[*a as usize];
         let ref t2 = &arm_list[*b as usize];
         let t = t1.merge(&t2);
         if !t.is_rooted_core() {
-            pair_cache.insert((*a, *b));
+            cache.insert((*a, *b));
         }
     }
 
@@ -184,7 +185,7 @@ pub fn cores(max_length: u32) -> Vec<Triad> {
     let mut triadlist = Vec::<Triad>::new();
 
     for (a, b, c) in triplets.iter() {
-        if pair_cache.cached((*a, *b, *c)) {
+        if cache.cached((*a, *b, *c)) {
             continue;
         } else {
             let ref t1 = &arm_list[*a as usize];
