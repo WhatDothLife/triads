@@ -1,5 +1,5 @@
+use std::iter::FromIterator;
 use std::{collections::HashMap, collections::HashSet, fmt::Debug, hash::Hash};
-use std::{fmt::Display, iter::FromIterator};
 
 #[derive(Clone, Debug)]
 pub struct Set<T: Eq> {
@@ -255,11 +255,11 @@ where
     }
 
     let edges = g0.edge_vec();
-    let mut worklist = DedupList::<(V0, V0, bool)>::new(); // TODO use HashSet here
+    let mut worklist = HashSet::<(V0, V0, bool)>::new();
 
     for (x, y) in edges.iter().cloned() {
-        worklist.push((x, y, false));
-        worklist.push((y, x, true));
+        worklist.insert((x, y, false));
+        worklist.insert((y, x, true));
     }
 
     // list of worklist items for each vertex of g0
@@ -273,32 +273,27 @@ where
     }
 
     while !worklist.is_empty() {
-        // let (x, y, dir) = worklist.iter().cloned().next().unwrap();
-        // worklist.remove(&(x, y, dir));
-        let (x, y, dir) = worklist.pop().unwrap();
+        let (x, y, dir) = worklist.iter().cloned().next().unwrap();
+        worklist.remove(&(x, y, dir));
+        // let (x, y, dir) = worklist.pop().unwrap();
 
         if arc_reduce(x, y, dir, &mut f, &g1) {
             // domain of x changed, was the emtpy list derived?
-            if f.get(&x).unwrap().is_empty() {
-                return None;
-            } else {
-                // for item in items.get(&x).unwrap().iter().cloned() {
-                //     worklist.insert(item);
-                // }
-                worklist.append_list(&(items.get(&x).unwrap()));
+            // if f.get(&x).unwrap().is_empty() {
+            //     return None;
+            // } else {
+            for item in items.get(&x).unwrap().iter().cloned() {
+                worklist.insert(item);
             }
+            // worklist.append_list(&(items.get(&x).unwrap()));
+            // }
         }
     }
     Some(f)
 }
 
-// Since ac3 is a specialized version of ac3_precolor
-// we simply call the latter with an empty HashMap
-pub fn ac3<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    // mut f: HashMap<V0, Set<V1>>,
-) -> Option<HashMap<V0, Set<V1>>>
+// ac3 is a specialized version of ac3_precolor
+pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Copy + Hash,
     V1: Eq + Copy + Hash,
@@ -309,9 +304,10 @@ where
 // This function implements the arc-reduce operation
 // As its arguments it takes:
 // - Two vertices x, y
-// - A domain f for elements x, y (also known as lists)
+// - A bool dir, that represents edge direction
+// - A domain/lists f
 // - A graph g1 as an R2-constraint
-// It outputs a boolean, that tells whether the domain of x was reduced
+// Returns true, if the domain of x was reduced, false otherwise.
 pub fn arc_reduce<V0, V1>(
     x: V0,
     y: V0,
