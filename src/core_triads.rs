@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 /// A triad graph implemented as a wrapper around a `Vec<String>`.
 ///
 /// Each String in the Vector represents a path that leaves the
-/// vertex of degree 3 of the triad. '0' stands for
-/// forward edge and '1' for backward edge.
+/// vertex of degree 3 of the triad. `'0'` stands for
+/// forward edge and `'1'` for backward edge.
 ///
 /// Note that we don't restrict the triad to have exactly three arms.
 /// Instead there must be at most three arms, and every triad that has less
@@ -149,7 +149,7 @@ fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     ac3_precolor(g, g, pre_color)
 }
 
-// TODO Think of consistent names
+/// Returns a list of core triads up to a maximal arm length.
 pub fn cores(max_length: u32) -> Vec<Triad> {
     // Find a list of RCAs
     let mut arm_list = Vec::<Triad>::new();
@@ -161,7 +161,7 @@ pub fn cores(max_length: u32) -> Vec<Triad> {
             let mut triad = Triad::new();
             triad.add_arm(arm);
             if triad.is_rooted_core() {
-                println!("Pushing {:?} on the pathlist.", &triad);
+                println!("Added {:?} to armlist", &triad);
                 arm_list.push(triad);
             }
         }
@@ -193,7 +193,7 @@ pub fn cores(max_length: u32) -> Vec<Triad> {
             let ref t3 = &arm_list[*c as usize];
             let triad = t1.merge(&t2).merge(&t3);
             if triad.is_core() {
-                println!("Pushed {:?} onto the triadlist!", &triad);
+                println!("Added {:?} to triadlist", &triad);
                 triadlist.push(triad);
             }
         }

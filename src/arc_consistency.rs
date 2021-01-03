@@ -234,11 +234,13 @@ where
     f
 }
 
-// Implementation of the AC-3 algorithm by Mackworth 1977...
-// ...specialized to find graph homomorphisms
-// f represents an unary constraint (a list of vertices) for each vertex of g0
-// If there's no list specified for a vertex v, a list of all nodes of g1 is assigned to v
-// Returns None, if an empty domain is derived for some vertex v
+/// Implementation of the AC-3 algorithm by Mackworth 1977 specialized to find graph homomorphisms
+///
+/// f represents an unary constraint (a list of vertices?) for each vertex of g0
+/// If there's no list specified for a vertex v, a list of all nodes of g1 is assigned to v
+///
+/// Returns None, if an empty domain is derived for some vertex v, otherwise an
+/// arc-consistent map is returned.
 pub fn ac3_precolor<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
@@ -308,7 +310,7 @@ where
 // - A domain/lists f
 // - A graph g1 as an R2-constraint
 // Returns true, if the domain of x was reduced, false otherwise.
-pub fn arc_reduce<V0, V1>(
+fn arc_reduce<V0, V1>(
     x: V0,
     y: V0,
     dir: bool,
@@ -347,7 +349,7 @@ where
 // A vector that doesn't contain any duplicates
 // This data structure might be dropped in favor of HashSet
 #[derive(Clone, Debug)]
-pub struct DedupList<T: Eq> {
+struct DedupList<T: Eq> {
     items: Vec<T>,
 }
 
