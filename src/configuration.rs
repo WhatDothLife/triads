@@ -53,8 +53,12 @@ impl Configuration {
             .unwrap_or("false")
             .parse::<bool>()
             .unwrap();
-        let length = args.value_of("length").unwrap().parse::<u32>().unwrap();
-        let polymorphism = args.value_of("polymorphism").unwrap().to_string();
+        let length = args
+            .value_of("length")
+            .expect("length must be specified!")
+            .parse::<u32>()
+            .unwrap();
+        let polymorphism = args.value_of("polymorphism").unwrap_or("").to_string();
 
         Configuration {
             verbose,
