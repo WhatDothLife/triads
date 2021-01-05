@@ -1,4 +1,5 @@
 use std::iter::FromIterator;
+use std::ops::Mul;
 use std::{collections::HashMap, collections::HashSet, fmt::Debug, hash::Hash};
 
 #[derive(Clone, Debug)]
@@ -44,7 +45,7 @@ impl<T: Eq> FromIterator<T> for Set<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AdjacencyList<T: Eq + Hash> {
     //                 Vertex -> (Out-Edges, In-Edges)
     adjacency_list: HashMap<T, (Set<T>, Set<T>)>,
@@ -114,6 +115,51 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
             })
             .flatten()
             .collect::<Vec<_>>()
+    }
+}
+
+// Do we really need this?
+impl<T: Eq + Hash + Copy> Mul for AdjacencyList<T> {
+    type Output = AdjacencyList<(T, T)>;
+
+    fn mul(self, rhs: Self) -> AdjacencyList<(T, T)> {
+        let mut list = AdjacencyList::new();
+        for v1 in self.vertex_iter().cloned() {
+            for v2 in rhs.vertex_iter().cloned() {
+                list.insert_vertex((v1, v2));
+            }
+        }
+        for (u1, u2) in list.clone().vertex_iter() {
+            for (v1, v2) in list.clone().vertex_iter() {
+                if self.contains_edge(&u1, &v1) && rhs.contains_edge(&u2, &v2) {
+                    list.insert_edge(&(*u1, *u2), &(*v1, *v2));
+                }
+            }
+        }
+        list
+    }
+}
+
+// TODO generalize for k-ary product (list.product(k))?
+impl<T: Eq + Hash + Copy> Mul for &AdjacencyList<T> {
+    type Output = AdjacencyList<(T, T)>;
+
+    fn mul(self, rhs: Self) -> AdjacencyList<(T, T)> {
+        let mut list = AdjacencyList::new();
+        for v1 in self.vertex_iter().cloned() {
+            for v2 in rhs.vertex_iter().cloned() {
+                list.insert_vertex((v1, v2));
+            }
+        }
+        for (u1, u2) in list.clone().vertex_iter() {
+            // Micha
+            for (v1, v2) in list.clone().vertex_iter() {
+                if self.contains_edge(&u1, &v1) && rhs.contains_edge(&u2, &v2) {
+                    list.insert_edge(&(*u1, *u2), &(*v1, *v2));
+                }
+            }
+        }
+        list
     }
 }
 
