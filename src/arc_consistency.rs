@@ -118,45 +118,45 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
     }
 }
 
-// Do we really need this?
-impl<T: Eq + Hash + Copy> Mul for AdjacencyList<T> {
-    type Output = AdjacencyList<(T, T)>;
+// TODO generalize for n-th power (list.power(k))?
+impl<T, U> Mul<&AdjacencyList<U>> for &AdjacencyList<T>
+where
+    T: Eq + Hash + Copy,
+    U: Eq + Hash + Copy,
+{
+    type Output = AdjacencyList<(T, U)>;
 
-    fn mul(self, rhs: Self) -> AdjacencyList<(T, T)> {
+    fn mul(self, rhs: &AdjacencyList<U>) -> AdjacencyList<(T, U)> {
         let mut list = AdjacencyList::new();
+
         for v1 in self.vertex_iter().cloned() {
             for v2 in rhs.vertex_iter().cloned() {
                 list.insert_vertex((v1, v2));
             }
         }
-        for (u1, u2) in list.clone().vertex_iter() {
-            for (v1, v2) in list.clone().vertex_iter() {
-                if self.contains_edge(&u1, &v1) && rhs.contains_edge(&u2, &v2) {
-                    list.insert_edge(&(*u1, *u2), &(*v1, *v2));
-                }
-            }
-        }
-        list
-    }
-}
 
-// TODO generalize for k-ary product (list.product(k))?
-impl<T: Eq + Hash + Copy> Mul for &AdjacencyList<T> {
-    type Output = AdjacencyList<(T, T)>;
-
-    fn mul(self, rhs: Self) -> AdjacencyList<(T, T)> {
-        let mut list = AdjacencyList::new();
-        for v1 in self.vertex_iter().cloned() {
-            for v2 in rhs.vertex_iter().cloned() {
-                list.insert_vertex((v1, v2));
-            }
-        }
         for (u1, u2) in list.clone().vertex_iter() {
             // Micha
             for (v1, v2) in list.clone().vertex_iter() {
                 if self.contains_edge(&u1, &v1) && rhs.contains_edge(&u2, &v2) {
                     list.insert_edge(&(*u1, *u2), &(*v1, *v2));
                 }
+            }
+        }
+
+        list
+    }
+}
+
+impl<T: Eq + Hash + Copy> AdjacencyList<(T, T)> {
+    fn join_commutative(&self) -> AdjacencyList<((T, T), (T, T))> {
+        let mut list = AdjacencyList::new();
+        for (u, v) in self.vertex_iter() {
+            list.insert_vertex(((*u, *v), (*v, *u)));
+        }
+        for ((u1, v1), (w1, x1)) in list.vertex_iter() {
+            for ((u2, v2), (w2, x2)) in list.vertex_iter() {
+                // TODO
             }
         }
         list
@@ -390,51 +390,4 @@ where
         }
     }
     changed
-}
-
-// A vector that doesn't contain any duplicates
-// This data structure might be dropped in favor of HashSet
-#[derive(Clone, Debug)]
-struct DedupList<T: Eq> {
-    items: Vec<T>,
-}
-
-impl<T: Eq + Copy> DedupList<T> {
-    fn new() -> Self {
-        DedupList { items: Vec::new() }
-    }
-
-    fn push(&mut self, x: T) {
-        if !self.contains(&x) {
-            self.items.push(x);
-        }
-    }
-
-    fn pop(&mut self) -> Option<T> {
-        self.items.pop()
-    }
-
-    fn contains(&self, x: &T) -> bool {
-        self.items.contains(x)
-    }
-
-    fn append(&mut self, q: &Self) {
-        for item in q.iter().cloned() {
-            self.push(item);
-        }
-    }
-
-    fn append_list(&mut self, q: &Vec<T>) {
-        for item in q.iter().cloned() {
-            self.push(item);
-        }
-    }
-
-    fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
-        self.items.iter()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.items.is_empty()
-    }
 }
