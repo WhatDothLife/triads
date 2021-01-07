@@ -8,9 +8,6 @@ Use ~--help~
 
 # Possible parameters for --polymorphism are "" and "".
 
-Example usage
-```
-./triads -p "binary commutative" -l 8
-```
+Example usage: ~./triads -p "binary commutative" -l 8~
 * License
 This program is released under the terms of the GNU General Public License v3.0.
