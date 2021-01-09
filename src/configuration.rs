@@ -1,10 +1,10 @@
 use clap::{App, Arg};
 
+#[derive(Debug)]
 pub struct Configuration {
-    verbose: bool,
-    save: bool,
-    length: u32,
-    polymorphism: String,
+    pub verbose: bool,
+    pub length: u32,
+    pub polymorphism: String,
 }
 
 impl Configuration {
@@ -20,16 +20,11 @@ impl Configuration {
                     .help("Be verbose"),
             )
             .arg(
-                Arg::with_name("save")
-                    .short("s")
-                    .takes_value(false)
-                    .help("Save triads to file"),
-            )
-            .arg(
                 Arg::with_name("length")
                     .short("l")
                     .long("length")
                     .takes_value(true)
+                    .required(true)
                     .value_name("NUM")
                     .help("Maximum arm length of triad"),
             )
@@ -37,7 +32,7 @@ impl Configuration {
                 Arg::with_name("polymorphism")
                     .short("p")
                     .long("polymorphism")
-                    .value_name("NUM")
+                    .value_name("NAME")
                     .help("Polymorphism to check")
                     .takes_value(true),
             )
@@ -45,11 +40,6 @@ impl Configuration {
 
         let verbose = args
             .value_of("verbose")
-            .unwrap_or("false")
-            .parse::<bool>()
-            .unwrap();
-        let save = args
-            .value_of("save")
             .unwrap_or("false")
             .parse::<bool>()
             .unwrap();
@@ -62,7 +52,6 @@ impl Configuration {
 
         Configuration {
             verbose,
-            save,
             length,
             polymorphism,
         }
