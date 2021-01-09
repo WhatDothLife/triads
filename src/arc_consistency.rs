@@ -81,6 +81,24 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
         self.adjacency_list.contains_key(x)
     }
 
+    fn contract_vertices(&mut self, x: &T, y: &T) {
+        let (out_edges, in_edges) = self.adjacency_list.get(y).unwrap().clone();
+
+        for u in in_edges.iter() {
+            if !self.contains_edge(u, x) {
+                self.insert_edge(u, x);
+            }
+        }
+
+        for u in out_edges.iter() {
+            if !self.contains_edge(x, u) {
+                self.insert_edge(x, u);
+            }
+        }
+
+        self.remove_vertex(&y);
+    }
+
     pub fn insert_edge(&mut self, u: &T, v: &T) {
         self.adjacency_list.get_mut(u).unwrap().0.insert(*v);
         self.adjacency_list.get_mut(v).unwrap().1.insert(*u);
@@ -95,7 +113,7 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
         self.adjacency_list.get(u).unwrap().0.contains(v)
     }
 
-    fn vertex_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn vertex_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.adjacency_list.keys()
     }
 
@@ -118,7 +136,6 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
     }
 }
 
-// TODO generalize for n-th power (list.power(k))?
 impl<T, U> Mul<&AdjacencyList<U>> for &AdjacencyList<T>
 where
     T: Eq + Hash + Copy,
@@ -148,22 +165,34 @@ where
     }
 }
 
-impl<T: Eq + Hash + Copy> AdjacencyList<(T, T)> {
-    fn join_commutative(&self) -> AdjacencyList<((T, T), (T, T))> {
-        let mut list = AdjacencyList::new();
-        for (u, v) in self.vertex_iter() {
-            list.insert_vertex(((*u, *v), (*v, *u)));
-        }
-        for ((u1, v1), (w1, x1)) in list.vertex_iter() {
-            for ((u2, v2), (w2, x2)) in list.vertex_iter() {
-                // TODO
+impl<T: Eq + Hash + Copy> AdjacencyList<T> {
+    pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
+        let vs = self.vertex_iter().cloned().collect::<Vec<_>>();
+        // let len = vs.len(); Micha
+        let mut removed = HashSet::<T>::new();
+
+        for (i, v) in vs.iter().enumerate() {
+            if removed.contains(&v) {
+                continue;
+            }
+
+            for j in i + 1..vs.len() {
+                let w = vs.get(j).unwrap();
+                if p(v, w) {
+                    self.contract_vertices(v, w);
+                    removed.insert(*w);
+                }
             }
         }
-        list
     }
 }
 
-fn write_dot<VertexID: 'static + Copy + Hash + Eq + std::fmt::Display>(
+// TODO Think of a better name
+pub fn commutative<T: Eq>(a: &(T, T), c: &(T, T)) -> bool {
+    a.0 == c.1 && a.1 == c.0
+}
+
+pub fn write_dot<VertexID: 'static + Copy + Hash + Eq + std::fmt::Display>(
     graph: &AdjacencyList<VertexID>,
 ) {
     println!("digraph {}", '{');
