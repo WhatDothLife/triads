@@ -1,16 +1,26 @@
 use triads::{
-    arc_consistency::arc_consistency,
-    configuration::Configuration,
-    core_triads::{cores, Triad},
+    arc_consistency::{ac3_pruning_search, commutative},
+    core_triads::cores,
 };
+use triads::{configuration::Configuration, core_triads::Triad};
 
 fn main() {
-    // let cores = cores(5);
-    // println!("{:?}", cores);
-
     let config = Configuration::parse();
-    // let triad = Triad::from_strs("10111", "11000", "11011");
-    // let list = triad.adjacency_list();
-    // let l2 = arc_consistency(&list, &list);
-    // println!("{:?}", &l2);
+    let triads = cores(config.length);
+
+    for triad in triads.iter() {
+        let l = triad.adjacency_list();
+        let mut l2 = &l * &l;
+        l2.contract_if(&commutative);
+        let map = ac3_pruning_search(&l2, &l);
+        if let Some(m) = map {
+            println!("{:?}", &m);
+        } else {
+            println!(
+                "Triad {:?} does not have a commutative polymorphism",
+                &triad
+            );
+            return;
+        }
+    }
 }
