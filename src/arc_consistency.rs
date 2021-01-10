@@ -420,3 +420,51 @@ where
     }
     changed
 }
+
+pub fn ac3_pruning_search<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Copy + Hash,
+    V1: Eq + Copy + Hash,
+{
+    let f = match ac3(g0, g1) {
+        Some(v) => v,
+        None => return None,
+    };
+    let vec = f.clone().into_iter().collect::<Vec<_>>(); // Micha
+
+    ac3_pruning_search_rec(g0, g1, f, vec.into_iter())
+}
+
+// Micha
+fn ac3_pruning_search_rec<V0, V1, I>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: HashMap<V0, Set<V1>>,
+    mut iter: I,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Copy + Hash,
+    V1: Eq + Copy + Hash,
+    I: Iterator<Item = (V0, Set<V1>)>,
+{
+    let (u, l) = match iter.next() {
+        Some(v) => v,
+        None => return Some(f),
+    };
+
+    for v in l.iter() {
+        let mut set = Set::new();
+        set.insert(*v);
+        let mut map = f.clone();
+        *map.get_mut(&u).unwrap() = set;
+
+        match ac3_precolor(g0, g1, map.clone()) {
+            Some(_) => return ac3_pruning_search_rec(g0, g1, map, iter),
+            None => {}
+        }
+    }
+    return None;
+}
