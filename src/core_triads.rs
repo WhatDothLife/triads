@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-/// A triad graph implemented as a wrapper around a `Vec<String>`.
+/// A triad graph implemented as a wrapper struct around a `Vec<String>`.
 ///
 /// Each String in the Vector represents a path that leaves the
 /// vertex of degree 3 of the triad. `'0'` stands for
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// Note that we don't restrict the triad to have exactly three arms.
 /// Instead there must be at most three arms, and every triad that has less
 /// can be considered a "partial triad".
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Triad(Vec<String>);
 
 impl Triad {
@@ -36,7 +36,7 @@ impl Triad {
     /// ```
     /// let t = Triad::from_strs("0", "1", "00");
     /// ```
-    pub fn from_strs(a: &str, b: &str, c: &str) -> Triad {
+    pub fn from(a: &str, b: &str, c: &str) -> Triad {
         Triad(vec![a.to_string(), b.to_string(), c.to_string()])
     }
 
@@ -137,18 +137,6 @@ impl Triad {
     }
 }
 
-// A variant of precoloured AC, that restricts
-// the domain of vertex 0 to itself.
-fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
-    let mut set = Set::<u32>::new();
-    set.insert(0);
-
-    let mut pre_color = HashMap::<u32, Set<u32>>::new();
-    pre_color.insert(0, set);
-
-    ac3_precolor(g, g, pre_color)
-}
-
 /// Returns a list of core triads up to a maximal arm length.
 pub fn cores(max_length: u32) -> Vec<Triad> {
     // Find a list of RCAs
@@ -199,6 +187,18 @@ pub fn cores(max_length: u32) -> Vec<Triad> {
         }
     }
     triadlist
+}
+
+// A variant of precoloured AC, that restricts
+// the domain of vertex 0 to itself.
+fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
+    let mut set = Set::<u32>::new();
+    set.insert(0);
+
+    let mut pre_color = HashMap::<u32, Set<u32>>::new();
+    pre_color.insert(0, set);
+
+    ac3_precolor(g, g, pre_color)
 }
 
 // Cache to store pairs of RCAs that cannot form a core triad
