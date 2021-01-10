@@ -81,6 +81,7 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
         self.adjacency_list.contains_key(x)
     }
 
+    // Contracts two vertices x and y. The new node is labeled with x.
     fn contract_vertices(&mut self, x: &T, y: &T) {
         let (out_edges, in_edges) = self.adjacency_list.get(y).unwrap().clone();
 
@@ -111,6 +112,10 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
 
     fn contains_edge(&self, u: &T, v: &T) -> bool {
         self.adjacency_list.get(u).unwrap().0.contains(v)
+    }
+
+    fn contract_edge(&mut self, u: &T, v: &T) {
+        self.contract_vertices(u, v);
     }
 
     pub fn vertex_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
@@ -153,7 +158,6 @@ where
         }
 
         for (u1, u2) in list.clone().vertex_iter() {
-            // Micha
             for (v1, v2) in list.clone().vertex_iter() {
                 if self.contains_edge(&u1, &v1) && rhs.contains_edge(&u2, &v2) {
                     list.insert_edge(&(*u1, *u2), &(*v1, *v2));
@@ -168,7 +172,6 @@ where
 impl<T: Eq + Hash + Copy> AdjacencyList<T> {
     pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
         let vs = self.vertex_iter().cloned().collect::<Vec<_>>();
-        // let len = vs.len(); Micha
         let mut removed = HashSet::<T>::new();
 
         for (i, v) in vs.iter().enumerate() {
@@ -190,6 +193,25 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
 // TODO Think of a better name
 pub fn commutative<T: Eq>(a: &(T, T), c: &(T, T)) -> bool {
     a.0 == c.1 && a.1 == c.0
+}
+
+// TODO
+pub fn siggers<T: Eq>(a: &(T, T, T, T), b: &(T, T, T, T)) -> bool {
+    let mut va = vec![&a.0, &a.1, &a.2, &a.3];
+    let mut vb = vec![&b.0, &b.1, &b.2, &b.3];
+    va.dedup();
+    vb.dedup();
+
+    if !va.len() == 3 || !vb.len() == 3 {
+        return false;
+    } else {
+        for e in va.iter() {
+            if !vb.contains(e) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 pub fn write_dot<VertexID: 'static + Copy + Hash + Eq + std::fmt::Display>(
@@ -356,14 +378,14 @@ where
 
         if arc_reduce(x, y, dir, &mut f, &g1) {
             // domain of x changed, was the emtpy list derived?
-            // if f.get(&x).unwrap().is_empty() {
-            //     return None;
-            // } else {
-            for item in items.get(&x).unwrap().iter().cloned() {
-                worklist.insert(item);
+            if f.get(&x).unwrap().is_empty() {
+                return None;
+            } else {
+                for item in items.get(&x).unwrap().iter().cloned() {
+                    worklist.insert(item);
+                }
+                // worklist.append_list(&(items.get(&x).unwrap()));
             }
-            // worklist.append_list(&(items.get(&x).unwrap()));
-            // }
         }
     }
     Some(f)
