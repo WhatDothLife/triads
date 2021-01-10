@@ -293,3 +293,18 @@ fn arms_h(a: Vec<String>, mut len: u32) -> Vec<String> {
     len -= 1;
     return arms_h(b, len);
 }
+
+fn rooted_core_arms(len: u32) -> Vec<Triad> {
+    let mut arm_list = Vec::<Triad>::new(); // TODO use map filter here
+    let arms = arms(len);
+
+    for arm in arms.iter() {
+        let mut triad = Triad::new();
+        triad.add_arm(arm);
+        if triad.is_rooted_core() {
+            println!("Added {:?} to armlist", &triad);
+            arm_list.push(triad);
+        }
+    }
+    arm_list
+}
