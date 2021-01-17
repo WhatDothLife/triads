@@ -1,26 +1,74 @@
 use triads::{
-    arc_consistency::{ac3_pruning_search, commutative},
-    core_triads::cores,
+    arc_consistency::ac3,
+    configuration::Configuration,
+    cores::{cores_max_length, cores_nodes, triplets, Triad},
+    polymorphism::{commutative, polymorphism},
 };
-use triads::{configuration::Configuration, core_triads::Triad};
+use triads::{configuration::Run, polymorphism::majority};
 
 fn main() {
     let config = Configuration::parse();
-    let triads = cores(config.length);
 
-    for triad in triads.iter() {
-        let l = triad.adjacency_list();
-        let mut l2 = &l * &l;
-        l2.contract_if(&commutative);
-        let map = ac3_pruning_search(&l2, &l);
-        if let Some(m) = map {
-            println!("{:?}", &m);
-        } else {
-            println!(
-                "Triad {:?} does not have a commutative polymorphism",
-                &triad
-            );
-            return;
+    match config.run {
+        Run::CheckTriad => {
+            // let arms: Vec<String> = config.triad.split(',').map(|x| x.to_owned()).collect();
+            // let triad = Triad::from(&arms[0], &arms[1], &arms[2]);
+            // let polymorphism = polymorphism(&config.polymorphism);
+            // let l = triad.adjacency_list();
+            // if let Some(m) = polymorphism(l) {
+            //     println!(
+            //         "Triad: {:?} does have a {} polymorphism:",
+            //         triad, config.polymorphism
+            //     );
+            // } else {
+            //     println!(
+            //         "Triad: {:?} doesn't have a {} polymorphism!",
+            //         triad, config.polymorphism
+            //     );
+            // }
+        }
+
+        Run::CheckUpToNodes => {
+            let triads = cores_nodes(config.nodes);
+            println!("Generated Triads!");
+            let polymorphism = polymorphism(&config.polymorphism);
+            println!("Got polymorphism!");
+
+            for triad in triads.iter() {
+                let l = triad.adjacency_list();
+                if !polymorphism(l) {
+                    println!(
+                        "Triad: {:?} doesn't have a {} polymorphism!",
+                        triad, config.polymorphism
+                    );
+                }
+            }
+        }
+
+        Run::CheckUpToLength => {
+            let triads = cores_max_length(config.length);
+            println!("Generated Triads!");
+            let polymorphism = polymorphism(&config.polymorphism);
+            println!("Got polymorphism!");
+
+            for triad in triads.iter() {
+                println!("Iterating triad {:?}", &triad);
+                let l = triad.adjacency_list();
+                if !polymorphism(l) {
+                    println!(
+                        "Triad: {:?} doesn't have a {} polymorphism!",
+                        triad, config.polymorphism
+                    );
+                }
+            }
+        }
+
+        Run::GenerateUpToNodes => {
+            cores_nodes(config.length);
+        }
+
+        Run::GenerateUpToLength => {
+            cores_max_length(config.length);
         }
     }
 }
