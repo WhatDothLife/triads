@@ -157,11 +157,9 @@ where
             }
         }
 
-        for (u1, u2) in list.clone().vertex_iter() {
-            for (v1, v2) in list.clone().vertex_iter() {
-                if self.contains_edge(&u1, &v1) && rhs.contains_edge(&u2, &v2) {
-                    list.insert_edge(&(*u1, *u2), &(*v1, *v2));
-                }
+        for (x1, y1) in self.edge_vec().iter() {
+            for (x2, y2) in rhs.edge_vec().iter() {
+                list.insert_edge(&(*x1, *x2), &(*y1, *y2));
             }
         }
 
@@ -188,35 +186,54 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
             }
         }
     }
-}
 
-// TODO Think of a better name
-pub fn commutative<T: Eq>(a: &(T, T), c: &(T, T)) -> bool {
-    a.0 == c.1 && a.1 == c.0
-}
+    pub fn power_4(&self) -> AdjacencyList<(T, T, T, T)> {
+        let mut list = AdjacencyList::new();
 
-// TODO
-pub fn siggers<T: Eq>(a: &(T, T, T, T), b: &(T, T, T, T)) -> bool {
-    let mut va = vec![&a.0, &a.1, &a.2, &a.3];
-    let mut vb = vec![&b.0, &b.1, &b.2, &b.3];
-    va.dedup();
-    vb.dedup();
-
-    if !va.len() == 3 || !vb.len() == 3 {
-        return false;
-    } else {
-        for e in va.iter() {
-            if !vb.contains(e) {
-                return false;
+        for v1 in self.vertex_iter().cloned() {
+            for v2 in self.vertex_iter().cloned() {
+                for v3 in self.vertex_iter().cloned() {
+                    println!("Vertex1!");
+                    for v4 in self.vertex_iter().cloned() {
+                        list.insert_vertex((v1, v2, v3, v4));
+                        println!("Vertex2!");
+                    }
+                }
             }
         }
+
+        let edges = self.edge_vec();
+
+        for (x1, y1) in edges.iter() {
+            for (x2, y2) in edges.iter() {
+                for (x3, y3) in edges.iter() {
+                    println!("Inserting edge!");
+                    for (x4, y4) in edges.iter() {
+                        list.insert_edge(&(*x1, *x2, *x3, *x4), &(*y1, *y2, *y3, *y4));
+                        println!("Inserted edge!");
+                    }
+                }
+            }
+        }
+
+        // for (u1, u2, u3, u4) in list.clone().vertex_iter() {
+        //     for (v1, v2, v3, v4) in list.clone().vertex_iter() {
+        //         println!("Edges");
+        //         if self.contains_edge(&u1, &v1)
+        //             && self.contains_edge(&u2, &v2)
+        //             && self.contains_edge(&u3, &v3)
+        //             && self.contains_edge(&u4, &v4)
+        //         {
+        //             list.insert_edge(&(*u1, *u2, *u3, *u4), &(*v1, *v2, *v3, *v4));
+        //         }
+        //     }
+        // }
+
+        list
     }
-    true
 }
 
-pub fn write_dot<VertexID: 'static + Copy + Hash + Eq + std::fmt::Display>(
-    graph: &AdjacencyList<VertexID>,
-) {
+pub fn write_dot<VertexID: Copy + Hash + Eq + std::fmt::Display>(graph: &AdjacencyList<VertexID>) {
     println!("digraph {}", '{');
     for v in graph.vertex_iter() {
         println!("{};", v);
@@ -338,7 +355,7 @@ where
 ///
 /// Returns None, if an empty domain is derived for some vertex v, otherwise an
 /// arc-consistent map is returned.
-pub fn ac3_precolor<V0, V1>(
+pub fn ac3_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: HashMap<V0, Set<V1>>,
@@ -364,9 +381,11 @@ where
     // list of worklist items for each vertex of g0
     // they're added to worklist, if the domain of the respective vertex changed
     let mut items = HashMap::new();
+
     for v in g0.vertex_iter() {
         items.insert(*v, Vec::<(V0, V0, bool)>::new());
     }
+
     for (x, y, dir) in worklist.iter().cloned() {
         items.get_mut(&y).unwrap().push((x, y, dir));
     }
@@ -374,7 +393,6 @@ where
     while !worklist.is_empty() {
         let (x, y, dir) = worklist.iter().cloned().next().unwrap();
         worklist.remove(&(x, y, dir));
-        // let (x, y, dir) = worklist.pop().unwrap();
 
         if arc_reduce(x, y, dir, &mut f, &g1) {
             // domain of x changed, was the emtpy list derived?
@@ -384,28 +402,22 @@ where
                 for item in items.get(&x).unwrap().iter().cloned() {
                     worklist.insert(item);
                 }
-                // worklist.append_list(&(items.get(&x).unwrap()));
             }
         }
     }
     Some(f)
 }
 
-// ac3 is a specialized version of ac3_precolor
+// ac3 is a specialized version of ac3_precolour
 pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Copy + Hash,
     V1: Eq + Copy + Hash,
 {
-    ac3_precolor(g0, g1, HashMap::new())
+    ac3_precolour(g0, g1, HashMap::new())
 }
 
-// This function implements the arc-reduce operation
-// As its arguments it takes:
-// - Two vertices x, y
-// - A bool dir, that represents edge direction
-// - A domain/lists f
-// - A graph g1 as an R2-constraint
+// Implementation of the arc-reduce operation from ac3.
 // Returns true, if the domain of x was reduced, false otherwise.
 fn arc_reduce<V0, V1>(
     x: V0,
@@ -455,7 +467,7 @@ where
         Some(v) => v,
         None => return None,
     };
-    let vec = f.clone().into_iter().collect::<Vec<_>>(); // Micha
+    let vec = f.clone().into_iter().collect::<Vec<_>>();
 
     ac3_pruning_search_rec(g0, g1, f, vec.into_iter())
 }
@@ -477,15 +489,23 @@ where
         None => return Some(f),
     };
 
+    let mut debug = 0;
     for v in l.iter() {
+        debug += 1;
+        println!("Iterating {}", debug);
         let mut set = Set::new();
         set.insert(*v);
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        match ac3_precolor(g0, g1, map.clone()) {
+        match ac3_precolour(g0, g1, map.clone()) {
+            // TODO if let?
             Some(_) => return ac3_pruning_search_rec(g0, g1, map, iter),
             None => {}
+        }
+
+        if ac3_precolour(g0, g1, map.clone()).is_some() {
+            return ac3_pruning_search_rec(g0, g1, map, iter);
         }
     }
     return None;
