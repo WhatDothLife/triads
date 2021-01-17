@@ -1,10 +1,20 @@
 use clap::{App, Arg};
 
-#[derive(Debug)]
+pub enum Run {
+    CheckTriad,
+    CheckUpToLength,
+    CheckUpToNodes,
+    GenerateUpToLength,
+    GenerateUpToNodes,
+}
+
 pub struct Configuration {
     pub verbose: bool,
     pub length: u32,
+    pub nodes: u32,
     pub polymorphism: String,
+    pub triad: String,
+    pub run: Run,
 }
 
 impl Configuration {
@@ -24,9 +34,29 @@ impl Configuration {
                     .short("l")
                     .long("length")
                     .takes_value(true)
-                    .required(true)
+                    .required_unless("triad")
+                    .conflicts_with_all(&["nodes", "triad", "smaller"])
                     .value_name("NUM")
-                    .help("Maximum arm length of triad"),
+                    .help("Maximum arm length of triads"),
+            )
+            .arg(
+                Arg::with_name("nodes")
+                    .short("n")
+                    .long("nodes")
+                    .takes_value(true)
+                    .conflicts_with_all(&["length", "triad", "smaller"])
+                    .value_name("NUM")
+                    .help("Maximum number of nodes of triads"),
+            )
+            .arg(
+                Arg::with_name("triad")
+                    .short("t")
+                    .long("triad")
+                    .requires("polymorphism")
+                    .conflicts_with_all(&["nodes", "length"])
+                    .takes_value(true)
+                    .value_name("TRIAD")
+                    .help("Check a polymorphism on the given triad, e.g. \"010101,1111,01\""),
             )
             .arg(
                 Arg::with_name("polymorphism")
@@ -45,15 +75,40 @@ impl Configuration {
             .unwrap();
         let length = args
             .value_of("length")
-            .expect("length must be specified!")
+            .unwrap_or("0")
             .parse::<u32>()
             .unwrap();
-        let polymorphism = args.value_of("polymorphism").unwrap_or("").to_string();
+        let nodes = args
+            .value_of("nodes")
+            .unwrap_or("0")
+            .parse::<u32>()
+            .unwrap();
+        let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
+        let triad = args.value_of("triad").unwrap_or("").to_owned();
+
+        let run = if args.is_present("triad") {
+            Run::CheckTriad
+        } else if args.is_present("polymorphism") {
+            if args.is_present("nodes") {
+                Run::CheckUpToNodes
+            } else {
+                Run::CheckUpToLength
+            }
+        } else {
+            if args.is_present("nodes") {
+                Run::GenerateUpToNodes
+            } else {
+                Run::GenerateUpToLength
+            }
+        };
 
         Configuration {
             verbose,
             length,
+            nodes,
             polymorphism,
+            triad,
+            run,
         }
     }
 }
