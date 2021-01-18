@@ -46,12 +46,12 @@ impl<T: Eq> FromIterator<T> for Set<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct AdjacencyList<T: Eq + Hash> {
+pub struct AdjacencyList<T: Eq + Hash + Clone> {
     //                 Vertex -> (Out-Edges, In-Edges)
     adjacency_list: HashMap<T, (Set<T>, Set<T>)>,
 }
 
-impl<T: Eq + Hash + Copy> AdjacencyList<T> {
+impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     pub fn new() -> Self {
         AdjacencyList {
             adjacency_list: HashMap::new(),
@@ -101,13 +101,13 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
     }
 
     pub fn insert_edge(&mut self, u: &T, v: &T) {
-        self.adjacency_list.get_mut(u).unwrap().0.insert(*v);
-        self.adjacency_list.get_mut(v).unwrap().1.insert(*u);
+        self.adjacency_list.get_mut(u).unwrap().0.insert(v.clone());
+        self.adjacency_list.get_mut(v).unwrap().1.insert(u.clone());
     }
 
     fn remove_edge(&mut self, u: &T, v: &T) {
-        self.adjacency_list.get_mut(u).unwrap().0.insert(*v);
-        self.adjacency_list.get_mut(v).unwrap().1.insert(*u);
+        self.adjacency_list.get_mut(u).unwrap().0.remove(v);
+        self.adjacency_list.get_mut(v).unwrap().1.remove(u);
     }
 
     fn contains_edge(&self, u: &T, v: &T) -> bool {
@@ -132,7 +132,7 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
                     // iter out-edges
                     .0
                     .iter()
-                    .map(|v| (*u, *v))
+                    .map(|v| (u.clone(), v.clone()))
                     .collect::<Vec<_>>()
                     .into_iter()
             })
@@ -143,8 +143,8 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
 
 impl<T, U> Mul<&AdjacencyList<U>> for &AdjacencyList<T>
 where
-    T: Eq + Hash + Copy,
-    U: Eq + Hash + Copy,
+    T: Eq + Hash + Clone,
+    U: Eq + Hash + Clone,
 {
     type Output = AdjacencyList<(T, U)>;
 
@@ -153,13 +153,13 @@ where
 
         for v1 in self.vertex_iter().cloned() {
             for v2 in rhs.vertex_iter().cloned() {
-                list.insert_vertex((v1, v2));
+                list.insert_vertex((v1.clone(), v2));
             }
         }
 
         for (x1, y1) in self.edge_vec().iter() {
             for (x2, y2) in rhs.edge_vec().iter() {
-                list.insert_edge(&(*x1, *x2), &(*y1, *y2));
+                list.insert_edge(&(x1.clone(), x2.clone()), &(y1.clone(), y2.clone()));
             }
         }
 
@@ -167,7 +167,7 @@ where
     }
 }
 
-impl<T: Eq + Hash + Copy> AdjacencyList<T> {
+impl<T: Eq + Hash + Clone + Debug> AdjacencyList<T> {
     pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
         let vs = self.vertex_iter().cloned().collect::<Vec<_>>();
         let mut removed = HashSet::<T>::new();
@@ -181,53 +181,54 @@ impl<T: Eq + Hash + Copy> AdjacencyList<T> {
                 let w = vs.get(j).unwrap();
                 if p(v, w) {
                     self.contract_vertices(v, w);
-                    removed.insert(*w);
+                    removed.insert(w.clone());
                 }
             }
         }
     }
 
-    pub fn power_4(&self) -> AdjacencyList<(T, T, T, T)> {
+    pub fn power(&self, k: u32) -> AdjacencyList<Vec<T>> {
         let mut list = AdjacencyList::new();
 
-        for v1 in self.vertex_iter().cloned() {
-            for v2 in self.vertex_iter().cloned() {
-                for v3 in self.vertex_iter().cloned() {
-                    println!("Vertex1!");
-                    for v4 in self.vertex_iter().cloned() {
-                        list.insert_vertex((v1, v2, v3, v4));
-                        println!("Vertex2!");
-                    }
+        let mut vertices = Vec::<Vec<T>>::new();
+        vertices.push(Vec::<T>::new());
+
+        for _ in 0..k {
+            let mut tmp_vec = Vec::<Vec<T>>::new();
+            for vec in vertices.iter() {
+                for u in self.vertex_iter().cloned() {
+                    let mut v = vec.clone();
+                    v.push(u);
+                    tmp_vec.push(v);
                 }
             }
+            vertices = tmp_vec;
         }
 
-        let edges = self.edge_vec();
+        for vec in vertices.into_iter() {
+            list.insert_vertex(vec);
+        }
 
-        for (x1, y1) in edges.iter() {
-            for (x2, y2) in edges.iter() {
-                for (x3, y3) in edges.iter() {
-                    println!("Inserting edge!");
-                    for (x4, y4) in edges.iter() {
-                        list.insert_edge(&(*x1, *x2, *x3, *x4), &(*y1, *y2, *y3, *y4));
-                        println!("Inserted edge!");
-                    }
+        let mut edges = Vec::<(Vec<T>, Vec<T>)>::new();
+        edges.push((Vec::<T>::new(), Vec::<T>::new()));
+
+        for _ in 0..k {
+            let mut tmp_vec = Vec::<(Vec<T>, Vec<T>)>::new();
+            for (v1, v2) in edges.iter() {
+                for (u1, u2) in self.edge_vec().iter() {
+                    let mut w1 = v1.clone();
+                    let mut w2 = v2.clone();
+                    w1.push(u1.clone());
+                    w2.push(u2.clone());
+                    tmp_vec.push((w1, w2));
                 }
             }
+            edges = tmp_vec;
         }
 
-        // for (u1, u2, u3, u4) in list.clone().vertex_iter() {
-        //     for (v1, v2, v3, v4) in list.clone().vertex_iter() {
-        //         println!("Edges");
-        //         if self.contains_edge(&u1, &v1)
-        //             && self.contains_edge(&u2, &v2)
-        //             && self.contains_edge(&u3, &v3)
-        //             && self.contains_edge(&u4, &v4)
-        //         {
-        //             list.insert_edge(&(*u1, *u2, *u3, *u4), &(*v1, *v2, *v3, *v4));
-        //         }
-        //     }
-        // }
+        for (u, v) in edges.into_iter() {
+            list.insert_edge(&u, &v);
+        }
 
         list
     }
@@ -361,12 +362,12 @@ pub fn ac3_precolour<V0, V1>(
     mut f: HashMap<V0, Set<V1>>,
 ) -> Option<HashMap<V0, Set<V1>>>
 where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
 {
     for v0 in g0.vertex_iter() {
         if !f.contains_key(&v0) {
-            f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
+            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
         }
     }
 
@@ -374,7 +375,7 @@ where
     let mut worklist = HashSet::<(V0, V0, bool)>::new();
 
     for (x, y) in edges.iter().cloned() {
-        worklist.insert((x, y, false));
+        worklist.insert((x.clone(), y.clone(), false));
         worklist.insert((y, x, true));
     }
 
@@ -383,7 +384,7 @@ where
     let mut items = HashMap::new();
 
     for v in g0.vertex_iter() {
-        items.insert(*v, Vec::<(V0, V0, bool)>::new());
+        items.insert(v.clone(), Vec::<(V0, V0, bool)>::new());
     }
 
     for (x, y, dir) in worklist.iter().cloned() {
@@ -392,9 +393,9 @@ where
 
     while !worklist.is_empty() {
         let (x, y, dir) = worklist.iter().cloned().next().unwrap();
-        worklist.remove(&(x, y, dir));
+        worklist.remove(&(x.clone(), y.clone(), dir));
 
-        if arc_reduce(x, y, dir, &mut f, &g1) {
+        if arc_reduce(x.clone(), y, dir, &mut f, &g1) {
             // domain of x changed, was the emtpy list derived?
             if f.get(&x).unwrap().is_empty() {
                 return None;
@@ -411,8 +412,8 @@ where
 // ac3 is a specialized version of ac3_precolour
 pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
 where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
 {
     ac3_precolour(g0, g1, HashMap::new())
 }
@@ -427,8 +428,8 @@ fn arc_reduce<V0, V1>(
     g1: &AdjacencyList<V1>,
 ) -> bool
 where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
 {
     let mut changed = false;
     for vx in f.get(&x).unwrap().clone().iter() {
@@ -460,8 +461,8 @@ pub fn ac3_pruning_search<V0, V1>(
     g1: &AdjacencyList<V1>,
 ) -> Option<HashMap<V0, Set<V1>>>
 where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
 {
     let f = match ac3(g0, g1) {
         Some(v) => v,
@@ -472,7 +473,6 @@ where
     ac3_pruning_search_rec(g0, g1, f, vec.into_iter())
 }
 
-// Micha
 fn ac3_pruning_search_rec<V0, V1, I>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
@@ -480,8 +480,8 @@ fn ac3_pruning_search_rec<V0, V1, I>(
     mut iter: I,
 ) -> Option<HashMap<V0, Set<V1>>>
 where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
     I: Iterator<Item = (V0, Set<V1>)>,
 {
     let (u, l) = match iter.next() {
@@ -489,20 +489,12 @@ where
         None => return Some(f),
     };
 
-    let mut debug = 0;
     for v in l.iter() {
-        debug += 1;
-        println!("Iterating {}", debug);
         let mut set = Set::new();
-        set.insert(*v);
+        set.insert(v.clone());
+
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
-
-        match ac3_precolour(g0, g1, map.clone()) {
-            // TODO if let?
-            Some(_) => return ac3_pruning_search_rec(g0, g1, map, iter),
-            None => {}
-        }
 
         if ac3_precolour(g0, g1, map.clone()).is_some() {
             return ac3_pruning_search_rec(g0, g1, map, iter);
