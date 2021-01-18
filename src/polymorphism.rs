@@ -1,15 +1,15 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{fmt::Debug, hash::Hash};
 
-use crate::arc_consistency::{ac3_pruning_search, AdjacencyList, Set};
+use crate::arc_consistency::{ac3_pruning_search, AdjacencyList};
 
-pub fn commutative<T: Eq>(x: &(T, T), y: &(T, T)) -> bool {
-    x.0 == y.1 && x.1 == y.0
+pub fn commutative<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
+    x[0] == y[1] && x[1] == y[0]
 }
 
-pub fn siggers<T: Eq>(x: &(T, T, T, T), y: &(T, T, T, T)) -> bool {
-    let r = x.1 == y.0 && x.1 == y.2;
-    let a = x.0 == x.3 && x.0 == y.1;
-    let e = x.2 == y.3;
+pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
+    let r = x[1] == y[0] && x[1] == y[2];
+    let a = x[0] == x[3] && x[0] == y[1];
+    let e = x[2] == y[3];
     r && a && e
 }
 
@@ -33,19 +33,29 @@ fn major<T: Eq + Clone>(x: &(T, T, T)) -> Option<T> {
     }
 }
 
-pub fn polymorphism<T: Eq + Hash + Copy>(polymorphism: &str) -> impl Fn(AdjacencyList<T>) -> bool {
+pub fn polymorphism<T: Eq + Hash + Clone + Debug>(
+    polymorphism: &str,
+) -> impl Fn(AdjacencyList<T>) -> bool {
     match polymorphism {
         "commutative" => |list: AdjacencyList<T>| {
-            let mut product: AdjacencyList<(T, T)> = &list * &list;
+            println!("> Checking polymorphism...");
+            let mut product: AdjacencyList<Vec<T>> = list.power(2);
             product.contract_if(&commutative);
             ac3_pruning_search(&product, &list).is_some()
         },
 
         "siggers" => |list: AdjacencyList<T>| {
-            let mut product: AdjacencyList<(T, T, T, T)> = list.power_4();
-            product.contract_if(&siggers);
-            ac3_pruning_search(&product, &list).is_some()
+            println!("> Checking polymorphism...");
+            let mut product: AdjacencyList<Vec<T>> = list.power(2);
+            product.contract_if(&commutative);
+            if ac3_pruning_search(&product, &list).is_none() {
+                let mut product: AdjacencyList<Vec<T>> = list.power(4);
+                product.contract_if(&siggers);
+                return ac3_pruning_search(&product, &list).is_some();
+            }
+            true
         },
+
         &_ => |_: AdjacencyList<T>| false, // TODO Fix me
     }
 }
