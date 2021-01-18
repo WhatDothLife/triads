@@ -19,10 +19,10 @@ pub struct Configuration {
 
 impl Configuration {
     pub fn parse() -> Configuration {
-        let args = App::new("triads")
+        let args = App::new("Triads")
             .version("1.0")
             .author("Michael W. <michael.wernthaler@posteo.de>")
-            .about("A program for generating core triads and checking polymorphisms.")
+            .about("A program for generating core triads and checking polymorphisms on them.")
             .arg(
                 Arg::with_name("verbose")
                     .short("v")
@@ -56,7 +56,7 @@ impl Configuration {
                     .conflicts_with_all(&["nodes", "length"])
                     .takes_value(true)
                     .value_name("TRIAD")
-                    .help("Check a polymorphism on the given triad, e.g. \"010101,1111,01\""),
+                    .help("Check a polymorphism on the given triad, e.g. 111,011,01"),
             )
             .arg(
                 Arg::with_name("polymorphism")
