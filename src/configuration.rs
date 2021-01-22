@@ -1,11 +1,11 @@
 use clap::{App, Arg};
 
 pub enum Run {
-    CheckTriad,
-    CheckUpToLength,
-    CheckUpToNodes,
-    GenerateUpToLength,
-    GenerateUpToNodes,
+    Triad,
+    UpToLength,
+    UpToNodes,
+    // GenerateUpToLength,
+    // GenerateUpToNodes,
 }
 
 pub struct Configuration {
@@ -34,8 +34,7 @@ impl Configuration {
                     .short("l")
                     .long("length")
                     .takes_value(true)
-                    .required_unless("triad")
-                    .conflicts_with_all(&["nodes", "triad", "smaller"])
+                    .conflicts_with_all(&["nodes", "triad"])
                     .value_name("NUM")
                     .help("Maximum arm length of triads"),
             )
@@ -44,7 +43,7 @@ impl Configuration {
                     .short("n")
                     .long("nodes")
                     .takes_value(true)
-                    .conflicts_with_all(&["length", "triad", "smaller"])
+                    .conflicts_with_all(&["length", "triad"])
                     .value_name("NUM")
                     .help("Maximum number of nodes of triads"),
             )
@@ -52,7 +51,6 @@ impl Configuration {
                 Arg::with_name("triad")
                     .short("t")
                     .long("triad")
-                    .requires("polymorphism")
                     .conflicts_with_all(&["nodes", "length"])
                     .takes_value(true)
                     .value_name("TRIAD")
@@ -64,9 +62,14 @@ impl Configuration {
                     .long("polymorphism")
                     .value_name("NAME")
                     .help("Polymorphism to check")
-                    .takes_value(true),
+                    .takes_value(true)
+                    .required(true),
             )
             .get_matches();
+
+        if !args.is_present("triad") && !args.is_present("length") && !args.is_present("nodes") {
+            panic!("You must provide exactly one of the following arguments: triad, length, nodes");
+        }
 
         let verbose = args
             .value_of("verbose")
@@ -87,19 +90,11 @@ impl Configuration {
         let triad = args.value_of("triad").unwrap_or("").to_owned();
 
         let run = if args.is_present("triad") {
-            Run::CheckTriad
-        } else if args.is_present("polymorphism") {
-            if args.is_present("nodes") {
-                Run::CheckUpToNodes
-            } else {
-                Run::CheckUpToLength
-            }
+            Run::Triad
+        } else if args.is_present("nodes") {
+            Run::UpToNodes
         } else {
-            if args.is_present("nodes") {
-                Run::GenerateUpToNodes
-            } else {
-                Run::GenerateUpToLength
-            }
+            Run::UpToLength
         };
 
         Configuration {
