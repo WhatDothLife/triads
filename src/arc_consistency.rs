@@ -167,7 +167,7 @@ where
     }
 }
 
-impl<T: Eq + Hash + Clone + Debug> AdjacencyList<T> {
+impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
         let vs = self.vertex_iter().cloned().collect::<Vec<_>>();
         let mut removed = HashSet::<T>::new();
@@ -459,10 +459,10 @@ where
 pub fn ac3_pruning_search<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-) -> Option<HashMap<V0, Set<V1>>>
+) -> Option<HashMap<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
 {
     let f = match ac3(g0, g1) {
         Some(v) => v,
@@ -470,7 +470,15 @@ where
     };
     let vec = f.clone().into_iter().collect::<Vec<_>>();
 
-    ac3_pruning_search_rec(g0, g1, f, vec.into_iter())
+    if let Some(map) = ac3_pruning_search_rec(g0, g1, f, vec.into_iter()) {
+        Some(
+            map.iter()
+                .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
+                .collect(),
+        )
+    } else {
+        return None;
+    }
 }
 
 fn ac3_pruning_search_rec<V0, V1, I>(
@@ -480,8 +488,8 @@ fn ac3_pruning_search_rec<V0, V1, I>(
     mut iter: I,
 ) -> Option<HashMap<V0, Set<V1>>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
     I: Iterator<Item = (V0, Set<V1>)>,
 {
     let (u, l) = match iter.next() {
