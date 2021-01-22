@@ -43,6 +43,28 @@ impl Triad {
         Triad(vec![a.to_string(), b.to_string(), c.to_string()])
     }
 
+    /// Returns the `Triad` as a string.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// let t = Triad::from_strs("0", "1", "00");
+    /// asserteq!("0,1,00", t.as_string());
+    /// ```
+    pub fn as_string(&self) -> String {
+        let mut string = String::new();
+        let mut i = 0;
+        for arm in self.0.iter() {
+            if i > 0 {
+                string.push(',');
+            }
+            string.push_str(arm);
+            i += 1;
+        }
+        string
+    }
+
     /// Adds an arm to the triad.
     ///
     /// # Panics
@@ -189,12 +211,12 @@ pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
     for len in 1..=max_length {
         // TODO Single node as edge case? len = 0
 
-        cache.populate(len, &arm_list);
+        cache.populate_length(len, &arm_list);
 
         let cores_path = format!("data/cores_length{}", len);
 
         if let Ok(file) = fs::read(&cores_path) {
-            println!("Read cores with len = {} from file", len);
+            println!("\t- Reading cores with length {} from file", len);
             let triads: Vec<String> = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| x.to_owned())
@@ -209,6 +231,7 @@ pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
             .create(true)
             .open(&cores_path)
         {
+            println!("\t- Generating cores with length {}", len);
             for i in 1..=len {
                 for j in 1..=i {
                     for (a, arm1) in arm_list[len as usize].iter().enumerate() {
@@ -242,37 +265,22 @@ pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
 }
 
 pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
-    let arm_list = rooted_core_arms(num_nodes - 4);
+    let arm_list = rooted_core_arms(num_nodes - 3);
 
     println!("Created armlist!");
 
     // Cached pairs of RCAs that cannot form a core triad
     let mut cache = Cache::new();
-    for len in 0..arm_list.len() {
-        for i in 0..=min(len, num_nodes as usize - len - 1) {
-            // TODO ugly ^
-            for (a, arm1) in arm_list[len as usize].iter().enumerate() {
-                for (b, arm2) in arm_list[i as usize].iter().enumerate() {
-                    let mut t = Triad::new();
-                    t.add_arm(arm1);
-                    t.add_arm(arm2);
-                    if !t.is_rooted_core() {
-                        cache.insert(((len as u32, a), (i as u32, b)));
-                        println!("Inserting {} {}", len, i);
-                    }
-                }
-            }
-        }
-    }
-
-    println!("Initialized cache!");
 
     let mut triadlist = Vec::<Triad>::new();
 
-    for num in 1..=num_nodes {
+    for num in 3..=num_nodes {
+        cache.populate_nodes(num, &arm_list);
+
         let path = format!("data/cores_nodes{}", num);
 
         if let Ok(file) = fs::read(&path) {
+            println!("\t- Reading cores with number of nodes {} from file", num);
             let triads: Vec<String> = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| x.to_owned())
@@ -286,6 +294,9 @@ pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
             println!("Initializing triadlist!");
             for (i, j, k) in triplets(num).iter() {
                 for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
+                    if arm1.chars().next().unwrap() == '0' {
+                        continue;
+                    };
                     for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                         for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
                             if cache.cached((*i, a), (*j, b), (*k, c)) {
@@ -344,12 +355,59 @@ impl Cache {
         false
     }
 
-    fn populate(&mut self, len: u32, arm_list: &Vec<Vec<String>>) {
+    fn populate_nodes(&mut self, num: u32, arm_list: &Vec<Vec<String>>) {
+        let cache_path = format!("data/pairs_nodes{}", num);
+
+        println!("> Generating pairs with {} nodes", num);
+        if let Ok(file) = fs::read(&cache_path) {
+            println!("\t- Reading pairs with {} nodes from file", num);
+
+            let pairs = String::from_utf8_lossy(&file)
+                .split_terminator('\n')
+                .map(|x| {
+                    x.to_owned()
+                        .split_terminator(',')
+                        .map(|y| y.to_owned())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+
+            for pair in pairs {
+                let len = pair[0].parse::<u32>().unwrap();
+                let a = pair[1].parse::<usize>().unwrap();
+                let i = pair[2].parse::<u32>().unwrap();
+                let b = pair[3].parse::<usize>().unwrap();
+                self.0.insert(((len, a), (i, b)));
+            }
+        } else if let Ok(mut file) = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&cache_path)
+        {
+            for i in (num as f32 / 2.0).ceil() as u32..num - 2 {
+                for (a, arm1) in arm_list[i as usize].iter().enumerate() {
+                    for (b, arm2) in arm_list[(num - i - 1) as usize].iter().enumerate() {
+                        let mut t = Triad::new();
+                        t.add_arm(arm1);
+                        t.add_arm(arm2);
+                        if !t.is_rooted_core() {
+                            self.0.insert(((i as u32, a), (num - i - 1 as u32, b)));
+                            if let Err(e) = writeln!(file, "{},{},{},{}", i, a, num - i - 1, b) {
+                                eprintln!("Could not write to file: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn populate_length(&mut self, len: u32, arm_list: &Vec<Vec<String>>) {
         let cache_path = format!("data/pairs_length{}", len);
 
+        println!("> Generating pairs with length {}", len);
         if let Ok(file) = fs::read(&cache_path) {
-            println!("Read cache with len = {} from file", len);
-
+            println!("\t- Reading cores with length {} from file", len);
             let pairs = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| {
