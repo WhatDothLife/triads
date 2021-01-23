@@ -4,8 +4,8 @@
 A program for generating core triads and checking polymorphisms.
 
 * Installation
-~git clone https://github.com/hlissner/doom-emacs.git
-cargo build~
+~git clone https://github.com/hlissner/doom-emacs.git~
+~cargo build~
 
 * Usage
 Use ~--help~
