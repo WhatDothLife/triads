@@ -14,6 +14,7 @@ pub struct Configuration {
     pub nodes: u32,
     pub polymorphism: String,
     pub triad: String,
+    pub data: String,
     pub run: Run,
 }
 
@@ -65,6 +66,14 @@ impl Configuration {
                     .takes_value(true)
                     .required(true),
             )
+            .arg(
+                Arg::with_name("data")
+                    .short("d")
+                    .long("data")
+                    .value_name("PATH")
+                    .help("Where to store data like cores or polymorphisms")
+                    .takes_value(true), // .required(true)
+            )
             .get_matches();
 
         if !args.is_present("triad") && !args.is_present("length") && !args.is_present("nodes") {
@@ -86,8 +95,9 @@ impl Configuration {
             .unwrap_or("0")
             .parse::<u32>()
             .unwrap();
-        let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
         let triad = args.value_of("triad").unwrap_or("").to_owned();
+        let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
+        let data = args.value_of("data").unwrap_or("").to_owned();
 
         let run = if args.is_present("triad") {
             Run::Triad
@@ -103,6 +113,7 @@ impl Configuration {
             nodes,
             polymorphism,
             triad,
+            data,
             run,
         }
     }
