@@ -1,4 +1,8 @@
+use std::{fs::OpenOptions, io::Write};
+
+use rayon::prelude::*;
 use triads::{
+    arc_consistency::AdjacencyList,
     configuration::Configuration,
     cores::{cores_max_length, cores_nodes, Triad},
 };
@@ -9,9 +13,8 @@ fn main() {
 
     match config.run {
         Run::Triad => {
-            let arms: Vec<String> = config.triad.split(',').map(|x| x.to_owned()).collect();
-            let triad = Triad::from(&arms[0], &arms[1], &arms[2]);
-            let polymorphism = PolymorphismRegistry::get(&config.polymorphism).unwrap();
+            let triad = config.triad.parse::<Triad>().unwrap();
+            let polymorphism = PolymorphismRegistry::get(&config.polymorphism);
 
             println!("> Checking polymorphism...");
 
@@ -20,6 +23,14 @@ fn main() {
                     "\x1b[32m\t✔ {:?} does have a {} polymorphism!\x1b[00m",
                     triad, config.polymorphism
                 );
+                let mut path = String::from("data/");
+                path.push_str(&config.polymorphism);
+                path.push_str(&triad.as_string());
+                if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
+                    if let Err(e) = writeln!(file, "{:?}", map) {
+                        eprintln!("Couldn't write to file: {}", e);
+                    }
+                }
             } else {
                 println!(
                     "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
@@ -30,35 +41,35 @@ fn main() {
 
         Run::UpToNodes => {
             let triads = cores_nodes(config.nodes);
-            let polymorphism = PolymorphismRegistry::get(&config.polymorphism).unwrap();
+            let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
             println!("> Checking polymorphism...");
 
-            for triad in triads.iter() {
-                println!("Iterating {:?}", &triad);
+            triads.par_iter().for_each(|triad| {
                 if polymorphism(&triad.adjacency_list()).is_none() {
                     println!(
                         "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
                         triad, config.polymorphism
                     );
                 }
-            }
+            })
         }
 
         Run::UpToLength => {
             let triads = cores_max_length(config.length);
-            let polymorphism = PolymorphismRegistry::get(&config.polymorphism).unwrap();
+            let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
             println!("> Checking polymorphism...");
 
-            for triad in triads.iter() {
+            triads.par_iter().for_each(|triad| {
+                println!("\t- Checking {:?}", &triad);
                 if polymorphism(&triad.adjacency_list()).is_none() {
                     println!(
                         "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
                         triad, config.polymorphism
                     );
                 }
-            }
+            })
         }
     }
 }
