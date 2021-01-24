@@ -6,6 +6,7 @@ A program for generating core triads and checking polymorphisms.
 * Installation
 #+begin_src sh
 git clone https://github.com/WhatDothLife/triads.git
+cd triads
 cargo build
 #+end_src
 
