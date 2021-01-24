@@ -4,6 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{self, OpenOptions},
     io::Write,
+    str::FromStr,
 };
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
@@ -150,9 +151,20 @@ impl Triad {
     }
 }
 
+impl FromStr for Triad {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let arms: Vec<String> = s.split(',').map(|x| x.to_owned()).collect();
+        let triad = Triad::from(&arms[0], &arms[1], &arms[2]); // TODO make safe by returning Err
+
+        Ok(triad)
+    }
+}
+
 pub fn rooted_core_arms(max_length: u32) -> Vec<Vec<String>> {
-    let mut arm_list = vec![vec![String::from("")]];
-    let mut last = vec![String::from("")];
+    let mut arm_list = vec![vec![String::new()]];
+    let mut last = vec![String::new()];
 
     for len in 1..=max_length {
         let path = format!("data/arms{}", len);
@@ -216,7 +228,6 @@ pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
         let cores_path = format!("data/cores_length{}", len);
 
         if let Ok(file) = fs::read(&cores_path) {
-            println!("\t- Reading cores with length {} from file", len);
             let triads: Vec<String> = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| x.to_owned())
@@ -245,7 +256,7 @@ pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
                                 } else {
                                     let triad = Triad::from(arm1, arm2, arm3);
                                     if triad.is_core() {
-                                        println!("Added {:?} to triadlist", &triad);
+                                        println!("\t- Adding {:?} to triadlist", &triad);
                                         triadlist.push(triad);
                                         if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3)
                                         {
@@ -267,7 +278,7 @@ pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
 pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
     let arm_list = rooted_core_arms(num_nodes - 3);
 
-    println!("Created armlist!");
+    println!("\x1b[32m\t✔ Generated armlist\x1b[00m");
 
     // Cached pairs of RCAs that cannot form a core triad
     let mut cache = Cache::new();
@@ -280,7 +291,6 @@ pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
         let path = format!("data/cores_nodes{}", num);
 
         if let Ok(file) = fs::read(&path) {
-            println!("\t- Reading cores with number of nodes {} from file", num);
             let triads: Vec<String> = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| x.to_owned())
@@ -317,6 +327,7 @@ pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
             }
         }
     }
+    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
     triadlist
 }
 
@@ -358,10 +369,7 @@ impl Cache {
     fn populate_nodes(&mut self, num: u32, arm_list: &Vec<Vec<String>>) {
         let cache_path = format!("data/pairs_nodes{}", num);
 
-        println!("> Generating pairs with {} nodes", num);
         if let Ok(file) = fs::read(&cache_path) {
-            println!("\t- Reading pairs with {} nodes from file", num);
-
             let pairs = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| {
@@ -405,9 +413,7 @@ impl Cache {
     fn populate_length(&mut self, len: u32, arm_list: &Vec<Vec<String>>) {
         let cache_path = format!("data/pairs_length{}", len);
 
-        println!("> Generating pairs with length {}", len);
         if let Ok(file) = fs::read(&cache_path) {
-            println!("\t- Reading cores with length {} from file", len);
             let pairs = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| {
