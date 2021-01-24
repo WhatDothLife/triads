@@ -14,6 +14,7 @@ pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
 }
 
 pub fn commutative<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
+    assert!(x.len() == 2 && y.len() == 2, "Vertex without length 2");
     x[0] == y[1] && x[1] == y[0]
 }
 
@@ -46,9 +47,9 @@ where
 
 impl<T> Polymorphism<T>
 where
-    T: Clone + Eq + Hash,
+    T: Clone + Eq + Hash + Sync + Send + Debug,
 {
-    fn get<P: Fn(&Vec<T>, &Vec<T>) -> bool>(
+    fn find<P: Fn(&Vec<T>, &Vec<T>) -> bool>(
         list: &AdjacencyList<T>,
         arity: u32,
         predicate: &P,
@@ -77,32 +78,35 @@ where
     }
 }
 
-pub fn quaternary_siggers_polymorphism<T: Eq + Hash + Clone>(
+pub fn quaternary_siggers_polymorphism<T: Eq + Hash + Clone + Send + Sync + Debug>(
     list: &AdjacencyList<T>,
 ) -> Option<Polymorphism<T>> {
-    if let Some(m) = Polymorphism::<T>::get(list, 2, &commutative) {
+    if let Some(m) = Polymorphism::<T>::find(list, 2, &commutative) {
         Some(m)
     } else {
-        Polymorphism::<T>::get(list, 4, &siggers)
+        Polymorphism::<T>::find(list, 4, &siggers)
     }
 }
 
-pub fn binary_commutative_polymorphism<T: Eq + Hash + Clone>(
+pub fn binary_commutative_polymorphism<T: Eq + Hash + Clone + Send + Sync + Debug>(
     list: &AdjacencyList<T>,
 ) -> Option<Polymorphism<T>> {
-    Polymorphism::<T>::get(list, 2, &siggers)
+    Polymorphism::<T>::find(list, 2, &commutative)
 }
 
 pub struct PolymorphismRegistry;
 
 impl PolymorphismRegistry {
-    pub fn get<T: Clone + Eq + Hash + 'static>(
+    pub fn get<T: Clone + Eq + Hash + Sync + Send + Debug + 'static>(
         polymorphism: &str,
-    ) -> Option<Box<dyn Fn(&AdjacencyList<T>) -> Option<Polymorphism<T>>>> {
+    ) -> Box<dyn Fn(&AdjacencyList<T>) -> Option<Polymorphism<T>> + Sync> {
         match polymorphism {
-            "siggers" => Some(Box::new(quaternary_siggers_polymorphism)),
-            "commutative" => Some(Box::new(binary_commutative_polymorphism)),
-            &_ => None,
+            "siggers" => Box::new(quaternary_siggers_polymorphism),
+            "commutative" => Box::new(binary_commutative_polymorphism),
+            &_ => panic!(format!(
+                "No polymorphism registered with name: {}",
+                polymorphism
+            )),
         }
     }
 }
