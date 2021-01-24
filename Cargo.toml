@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 criterion = "0.3"
 clap = "2.33.0"
+rayon = "1.5"
 
 [[bench]]
 name = "ac_bench"

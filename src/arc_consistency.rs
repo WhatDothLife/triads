@@ -1,6 +1,9 @@
 use std::iter::FromIterator;
-use std::ops::Mul;
-use std::{collections::HashMap, collections::HashSet, fmt::Debug, hash::Hash};
+use std::{
+    collections::HashMap, collections::HashSet, fmt::Debug, hash::Hash, ops::Mul, sync::Mutex,
+};
+
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 #[derive(Clone, Debug)]
 pub struct Set<T: Eq> {
@@ -186,49 +189,50 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
             }
         }
     }
+}
 
+impl<T: Eq + Hash + Clone + Sync + Send + Debug> AdjacencyList<T> {
     pub fn power(&self, k: u32) -> AdjacencyList<Vec<T>> {
         let mut list = AdjacencyList::new();
 
-        let mut vertices = Vec::<Vec<T>>::new();
-        vertices.push(Vec::<T>::new());
+        let mut vertices = vec![vec![]];
 
         for _ in 0..k {
-            let mut tmp_vec = Vec::<Vec<T>>::new();
-            for vec in vertices.iter() {
+            let tmp_vec = Mutex::new(Some(vec![]));
+            vertices.par_iter().for_each(|vec| {
                 for u in self.vertex_iter().cloned() {
                     let mut v = vec.clone();
                     v.push(u);
-                    tmp_vec.push(v);
+                    tmp_vec.lock().unwrap().as_mut().unwrap().push(v);
                 }
-            }
-            vertices = tmp_vec;
+            });
+            vertices = tmp_vec.lock().unwrap().take().unwrap();
         }
 
         for vec in vertices.into_iter() {
             list.insert_vertex(vec);
         }
 
-        let mut edges = Vec::<(Vec<T>, Vec<T>)>::new();
-        edges.push((Vec::<T>::new(), Vec::<T>::new()));
+        let mut edges = vec![(vec![], vec![])];
 
         for _ in 0..k {
-            let mut tmp_vec = Vec::<(Vec<T>, Vec<T>)>::new();
-            for (v1, v2) in edges.iter() {
+            let tmp_vec = Mutex::new(Some(Vec::<(Vec<T>, Vec<T>)>::new()));
+            edges.par_iter().for_each(|(v1, v2)| {
                 for (u1, u2) in self.edge_vec().iter() {
                     let mut w1 = v1.clone();
                     let mut w2 = v2.clone();
                     w1.push(u1.clone());
                     w2.push(u2.clone());
-                    tmp_vec.push((w1, w2));
+                    tmp_vec.lock().unwrap().as_mut().unwrap().push((w1, w2));
                 }
-            }
-            edges = tmp_vec;
+            });
+            edges = tmp_vec.lock().unwrap().take().unwrap();
         }
 
         for (u, v) in edges.into_iter() {
             list.insert_edge(&u, &v);
         }
+        println!("Finisched power graph!");
 
         list
     }
