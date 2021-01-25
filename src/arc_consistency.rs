@@ -232,7 +232,6 @@ impl<T: Eq + Hash + Clone + Sync + Send + Debug> AdjacencyList<T> {
         for (u, v) in edges.into_iter() {
             list.insert_edge(&u, &v);
         }
-        println!("Finisched power graph!");
 
         list
     }
@@ -496,9 +495,10 @@ where
     V1: Eq + Clone + Hash,
     I: Iterator<Item = (V0, Set<V1>)>,
 {
-    let (u, l) = match iter.next() {
-        Some(v) => v,
-        None => return Some(f),
+    let (u, l) = if let Some(v) = iter.next() {
+        v
+    } else {
+        return Some(f);
     };
 
     for v in l.iter() {
