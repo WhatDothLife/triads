@@ -1,20 +1,21 @@
+use std::ops::{Deref, Range};
+
 use clap::{App, Arg};
+use lazy_static::lazy_static;
+use std::sync::{RwLock, RwLockReadGuard};
 
 pub enum Run {
     Triad,
-    UpToLength,
-    UpToNodes,
-    // GenerateUpToLength,
-    // GenerateUpToNodes,
+    Length,
+    Nodes,
 }
 
 pub struct Configuration {
     pub verbose: bool,
-    pub length: u32,
+    pub length: Range<u32>,
     pub nodes: u32,
     pub polymorphism: String,
     pub triad: String,
-    pub data: String,
     pub run: Run,
 }
 
@@ -36,8 +37,8 @@ impl Configuration {
                     .long("length")
                     .takes_value(true)
                     .conflicts_with_all(&["nodes", "triad"])
-                    .value_name("NUM")
-                    .help("Maximum arm length of triads"),
+                    .value_name("NUM or RANGE")
+                    .help("Arm length of triads, e.g. 5 or 3-6"),
             )
             .arg(
                 Arg::with_name("nodes")
@@ -71,6 +72,7 @@ impl Configuration {
                     .short("d")
                     .long("data")
                     .value_name("PATH")
+                    .default_value("data")
                     .help("Where to store data like cores or polymorphisms")
                     .takes_value(true), // .required(true)
             )
@@ -85,11 +87,6 @@ impl Configuration {
             .unwrap_or("false")
             .parse::<bool>()
             .unwrap();
-        let length = args
-            .value_of("length")
-            .unwrap_or("0")
-            .parse::<u32>()
-            .unwrap();
         let nodes = args
             .value_of("nodes")
             .unwrap_or("0")
@@ -97,15 +94,29 @@ impl Configuration {
             .unwrap();
         let triad = args.value_of("triad").unwrap_or("").to_owned();
         let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
-        let data = args.value_of("data").unwrap_or("").to_owned();
+        let data = args.value_of("data").unwrap_or("data").to_owned();
+        let length_vec = args
+            .value_of("length")
+            .unwrap_or("0-0")
+            .split('-')
+            .collect::<Vec<_>>();
+        let begin = length_vec.get(0).unwrap().parse::<u32>().unwrap();
+        let end = if let Some(s) = length_vec.get(1) {
+            s.parse::<u32>().unwrap()
+        } else {
+            begin
+        };
+        let length = begin..end + 1; // Inclusive range
 
         let run = if args.is_present("triad") {
             Run::Triad
         } else if args.is_present("nodes") {
-            Run::UpToNodes
+            Run::Nodes
         } else {
-            Run::UpToLength
+            Run::Length
         };
+
+        Globals::set(Globals { data });
 
         Configuration {
             verbose,
@@ -113,8 +124,43 @@ impl Configuration {
             nodes,
             polymorphism,
             triad,
-            data,
             run,
         }
+    }
+}
+
+#[derive(Default)]
+pub struct Globals {
+    pub data: String,
+}
+
+impl Globals {
+    pub fn new(data: String) -> Self {
+        Globals { data }
+    }
+}
+
+lazy_static! {
+    static ref GLOBALS: RwLock<Option<Globals>> = RwLock::new(Some(Globals {
+        data: String::new()
+    }));
+}
+
+impl Globals {
+    pub fn get() -> impl Deref<Target = Globals> {
+        // Unfortunately because RwLockReadGuard::map does not exist, we have
+        // to create our own mapped version
+        struct Guard(RwLockReadGuard<'static, Option<Globals>>);
+        impl Deref for Guard {
+            type Target = Globals;
+            fn deref(&self) -> &Globals {
+                self.0.as_ref().expect("Initialize globals first")
+            }
+        }
+        Guard(GLOBALS.read().expect("RwLock is poisoned"))
+    }
+
+    pub fn set(value: Globals) {
+        *GLOBALS.write().expect("RwLock is poisoned") = Some(value);
     }
 }
