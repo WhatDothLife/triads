@@ -1,12 +1,11 @@
 use std::{fs::OpenOptions, io::Write};
 
 use rayon::prelude::*;
-use triads::{
-    arc_consistency::AdjacencyList,
-    configuration::{Configuration, Globals},
-    cores::{cores_max_length, cores_nodes, cores_range, Triad},
-};
 use triads::{configuration::Run, polymorphism::PolymorphismRegistry};
+use triads::{
+    configuration::{Configuration, Globals},
+    cores::{cores_length_range, cores_nodes_range, Triad},
+};
 
 fn main() {
     let config = Configuration::parse();
@@ -43,12 +42,14 @@ fn main() {
         }
 
         Run::Nodes => {
-            let triads = cores_nodes(config.nodes);
+            let triads = cores_nodes_range(config.nodes.clone());
             let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
             println!("> Checking polymorphism...");
 
             triads.par_iter().for_each(|triad| {
+                println!("\t- Checking {:?}", &triad);
+
                 if polymorphism(&triad.adjacency_list()).is_none() {
                     println!(
                         "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
@@ -67,7 +68,7 @@ fn main() {
         }
 
         Run::Length => {
-            let triads = cores_range(config.length.clone());
+            let triads = cores_length_range(config.length.clone());
             let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
             println!("> Checking polymorphism...");

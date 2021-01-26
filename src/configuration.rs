@@ -13,7 +13,7 @@ pub enum Run {
 pub struct Configuration {
     pub verbose: bool,
     pub length: Range<u32>,
-    pub nodes: u32,
+    pub nodes: Range<u32>,
     pub polymorphism: String,
     pub triad: String,
     pub run: Run,
@@ -87,26 +87,11 @@ impl Configuration {
             .unwrap_or("false")
             .parse::<bool>()
             .unwrap();
-        let nodes = args
-            .value_of("nodes")
-            .unwrap_or("0")
-            .parse::<u32>()
-            .unwrap();
+        let nodes = parse_range(args.value_of("nodes").unwrap_or("0-0"));
+        let length = parse_range(args.value_of("length").unwrap_or("0-0"));
         let triad = args.value_of("triad").unwrap_or("").to_owned();
         let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
         let data = args.value_of("data").unwrap_or("data").to_owned();
-        let length_vec = args
-            .value_of("length")
-            .unwrap_or("0-0")
-            .split('-')
-            .collect::<Vec<_>>();
-        let begin = length_vec.get(0).unwrap().parse::<u32>().unwrap();
-        let end = if let Some(s) = length_vec.get(1) {
-            s.parse::<u32>().unwrap()
-        } else {
-            begin
-        };
-        let length = begin..end + 1; // Inclusive range
 
         let run = if args.is_present("triad") {
             Run::Triad
@@ -127,6 +112,18 @@ impl Configuration {
             run,
         }
     }
+}
+
+fn parse_range(s: &str) -> Range<u32> {
+    let length_vec = s.split('-').collect::<Vec<_>>();
+    let begin = length_vec.get(0).unwrap().parse::<u32>().unwrap();
+    let end = if let Some(s) = length_vec.get(1) {
+        s.parse::<u32>().unwrap()
+    } else {
+        begin
+    };
+    let length = begin..end + 1;
+    length
 }
 
 #[derive(Default)]

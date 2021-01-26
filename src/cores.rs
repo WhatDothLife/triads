@@ -210,123 +210,52 @@ pub fn rooted_core_arms(max_length: u32) -> Vec<Vec<String>> {
     arm_list
 }
 
-/// Returns a list of core triads up to a maximal arm length.
-pub fn cores_max_length(max_length: u32) -> Vec<Triad> {
+pub fn cores_length_range(range: Range<u32>) -> Vec<Triad> {
     println!("> Generating arms...");
-
-    let arm_list = rooted_core_arms(max_length);
-    println!("\x1b[32m\t✔ Generated armlist\x1b[00m");
-
-    // Cached pairs of RCAs that cannot form a core triad
-    let mut cache = Cache::new();
-    let mut triadlist = Vec::<Triad>::new();
-
-    println!("> Generating triads...");
-    for len in 1..=max_length {
-        cache.populate_length(len, &arm_list);
-
-        let cores_path = format!("{}/length/cores_length{}", Globals::get().data, len);
-
-        if let Ok(file) = fs::read(&cores_path) {
-            let triads: Vec<String> = String::from_utf8_lossy(&file)
-                .split_terminator('\n')
-                .map(|x| x.to_owned())
-                .collect();
-            for triad in triads {
-                triadlist.push(Triad(
-                    triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
-                ));
-            }
-        } else if let Ok(mut file) = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&cores_path)
-        {
-            println!("\t- Generating cores with length {}", len);
-            for i in 1..=len {
-                for j in 1..=i {
-                    for (a, arm1) in arm_list[len as usize].iter().enumerate() {
-                        if arm1.chars().next().unwrap() == '0' {
-                            continue;
-                        };
-                        for (b, arm2) in arm_list[i as usize].iter().enumerate() {
-                            for (c, arm3) in arm_list[j as usize].iter().enumerate() {
-                                if cache.cached((len, a), (i, b), (j, c)) {
-                                    continue;
-                                } else {
-                                    let triad = Triad::from(arm1, arm2, arm3);
-                                    if triad.is_core() {
-                                        println!("\t- Adding {:?} to triadlist", &triad);
-                                        triadlist.push(triad);
-                                        if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3)
-                                        {
-                                            eprintln!("Could not write to file: {}", e);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            eprintln!("Could not read file: {}", &cores_path);
-        }
-    }
-    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
-    triadlist
-}
-
-pub fn cores_range(range: Range<u32>) -> Vec<Triad> {
-    println!("\x1b[32m> Generating armlist...\x1b[00m");
     let arm_list = rooted_core_arms(range.end - 1);
-    println!("\x1b[32m\t✔ Generated armlist\x1b[00m");
+    println!("\x1b[32m\t✔ Generated arms\x1b[00m");
 
     // Cached pairs of RCAs that cannot form a core triad
     let mut cache = Cache::new();
     let mut triadlist = Vec::<_>::new();
 
+    println!("> Generating triads...");
     for i in range {
+        println!("\t- Generating triads with length {}", i);
         triadlist.push(cores_length(&arm_list, &mut cache, i));
     }
+    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
 
     triadlist.into_iter().flatten().collect()
 }
 
-// Estimates number of cores of length len for allocation
+// Estimates number of cores with armlength len for Vector allocation
 fn num_cores_length(len: u32) -> usize {
     (0.005 * (9 as u32).pow(len) as f32) as usize
 }
 
 fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec<Triad> {
-    let cores_path = format!("{}/length/cores_length{}", Globals::get().data, len);
-    let mut triad_list = Vec::<Triad>::with_capacity(num_cores_length(len));
+    let path = format!("{}/length/cores_length{}", Globals::get().data, len);
+    let mut triadlist = Vec::<Triad>::with_capacity(num_cores_length(len));
 
-    if let Ok(file) = fs::read(&cores_path) {
+    if let Ok(file) = fs::read(&path) {
         let triads: Vec<String> = String::from_utf8_lossy(&file)
             .split_terminator('\n')
             .map(|x| x.to_owned())
             .collect();
         for triad in triads {
-            triad_list.push(Triad(
+            triadlist.push(Triad(
                 triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
             ));
         }
-    } else if let Ok(mut file) = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(&cores_path)
-    {
-        println!("\t- Generating cores with length {}", len);
+    } else if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&path) {
         cache.populate_to_length(len, &arm_list);
 
         for (i, j, k) in triplets_length(len) {
-            println!("{}, {}, {}", i, j, k);
             for (a, arm1) in arm_list[i as usize].iter().enumerate() {
                 if arm1.chars().next().unwrap() == '0' {
                     continue;
                 };
-                println!("{:?}", &arm1);
                 for (b, arm2) in arm_list[j as usize].iter().enumerate() {
                     for (c, arm3) in arm_list[k as usize].iter().enumerate() {
                         if cache.cached((i, a), (j, b), (k, c)) {
@@ -334,8 +263,7 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
                         } else {
                             let triad = Triad::from(arm1, arm2, arm3);
                             if triad.is_core() {
-                                println!("\t- Adding {:?} to triadlist", &triad);
-                                triad_list.push(triad);
+                                triadlist.push(triad);
                                 if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3) {
                                     eprintln!("Could not write to file: {}", e);
                                 }
@@ -346,56 +274,65 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
             }
         }
     }
-    triad_list
+    triadlist
 }
 
-pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
+pub fn cores_nodes_range(range: Range<u32>) -> Vec<Triad> {
     println!("> Generating arms...");
-
-    let arm_list = rooted_core_arms(num_nodes - 3);
-
-    println!("\x1b[32m\t✔ Generated armlist\x1b[00m");
+    // 1. range is exclusive
+    // 2. triad has two arms with at least one and two vertices
+    // 3. triad has a middle vertex
+    // So we save time and subtract by 5
+    let arm_list = rooted_core_arms(range.end - 5);
+    println!("\x1b[32m\t✔ Generated arms\x1b[00m");
 
     // Cached pairs of RCAs that cannot form a core triad
     let mut cache = Cache::new();
-
-    let mut triadlist = Vec::<Triad>::new();
+    let mut triadlist = Vec::<_>::new();
 
     println!("> Generating triads...");
-    for num in 3..=num_nodes {
-        cache.populate_nodes(num, &arm_list);
+    for num in range {
+        println!("\t- Generating triads with {} nodes", num);
+        triadlist.push(cores_nodes(&arm_list, &mut cache, num));
+    }
+    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
 
-        let path = format!("{}/cores/cores_nodes{}", Globals::get().data, num);
+    triadlist.into_iter().flatten().collect()
+}
 
-        if let Ok(file) = fs::read(&path) {
-            let triads: Vec<String> = String::from_utf8_lossy(&file)
-                .split_terminator('\n')
-                .map(|x| x.to_owned())
-                .collect();
-            for triad in triads {
-                triadlist.push(Triad(
-                    triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
-                ));
-            }
-        } else if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&path) {
-            println!("Initializing triadlist!");
-            for (i, j, k) in triplets_nodes(num).iter() {
-                for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
-                    if arm1.chars().next().unwrap() == '0' {
-                        continue;
-                    };
-                    for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
-                        for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
-                            if cache.cached((*i, a), (*j, b), (*k, c)) {
-                                continue;
-                            } else {
-                                let triad = Triad::from(arm1, arm2, arm3);
-                                if triad.is_core() {
-                                    println!("Added {:?} to triadlist", &triad);
-                                    triadlist.push(triad);
-                                    if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3) {
-                                        eprintln!("Could not write to file: {}", e);
-                                    }
+fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<Triad> {
+    cache.populate_nodes(num, &arm_list);
+
+    let path = format!("{}/nodes/cores_nodes{}", Globals::get().data, num);
+    let mut triadlist = Vec::<Triad>::new();
+
+    if let Ok(file) = fs::read(&path) {
+        let triads: Vec<String> = String::from_utf8_lossy(&file)
+            .split_terminator('\n')
+            .map(|x| x.to_owned())
+            .collect();
+        for triad in triads {
+            triadlist.push(Triad(
+                triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
+            ));
+        }
+    } else if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&path) {
+        for (i, j, k) in triplets_nodes(num).iter() {
+            for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
+                if arm1.chars().next().unwrap() == '0' {
+                    continue;
+                };
+                for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
+                    for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
+                        if cache.cached((*i, a), (*j, b), (*k, c)) {
+                            continue;
+                        } else {
+                            let triad = Triad::from(arm1, arm2, arm3);
+                            if triad.is_core() {
+                                println!("Added {:?} to triadlist", &triad);
+                                triadlist.push(triad);
+                                if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3) {
+                                    eprintln!("Could not write to file: {}", e);
                                 }
                             }
                         }
@@ -404,7 +341,6 @@ pub fn cores_nodes(num_nodes: u32) -> Vec<Triad> {
             }
         }
     }
-    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
     triadlist
 }
 
