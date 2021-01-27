@@ -1,5 +1,6 @@
 use crate::arc_consistency::{ac3, ac3_precolour, AdjacencyList, Set};
 use crate::configuration::Globals;
+use rayon::prelude::*;
 use std::{
     cmp::min,
     collections::{HashMap, HashSet},
@@ -7,6 +8,8 @@ use std::{
     io::Write,
     ops::Range,
     str::FromStr,
+    sync::Arc,
+    sync::Mutex,
 };
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
@@ -236,7 +239,7 @@ fn num_cores_length(len: u32) -> usize {
 
 fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec<Triad> {
     let path = format!("{}/length/cores_length{}", Globals::get().data, len);
-    let mut triadlist = Vec::<Triad>::with_capacity(num_cores_length(len));
+    let triadlist = Mutex::new(Some(Vec::<Triad>::with_capacity(num_cores_length(len))));
 
     if let Ok(file) = fs::read(&path) {
         let triads: Vec<String> = String::from_utf8_lossy(&file)
@@ -244,27 +247,34 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
             .map(|x| x.to_owned())
             .collect();
         for triad in triads {
-            triadlist.push(Triad(
+            triadlist.lock().unwrap().as_mut().unwrap().push(Triad(
                 triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
             ));
         }
-    } else if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&path) {
+    } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
+        let file_locked = Mutex::new(file);
         cache.populate_to_length(len, &arm_list);
 
-        for (i, j, k) in triplets_length(len) {
-            for (a, arm1) in arm_list[i as usize].iter().enumerate() {
+        triplets_length(len).par_iter().for_each(|[i, j, k]| {
+            for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                 if arm1.chars().next().unwrap() == '0' {
                     continue;
                 };
-                for (b, arm2) in arm_list[j as usize].iter().enumerate() {
-                    for (c, arm3) in arm_list[k as usize].iter().enumerate() {
-                        if cache.cached((i, a), (j, b), (k, c)) {
+                for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
+                    for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
+                        if cache.cached((*i, a), (*j, b), (*k, c)) {
                             continue;
                         } else {
                             let triad = Triad::from(arm1, arm2, arm3);
                             if triad.is_core() {
-                                triadlist.push(triad);
-                                if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3) {
+                                triadlist.lock().unwrap().as_mut().unwrap().push(triad);
+                                if let Err(e) = writeln!(
+                                    file_locked.lock().unwrap(),
+                                    "{},{},{}",
+                                    arm1,
+                                    arm2,
+                                    arm3
+                                ) {
                                     eprintln!("Could not write to file: {}", e);
                                 }
                             }
@@ -272,18 +282,18 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
                     }
                 }
             }
-        }
+        });
     }
-    triadlist
+    let list = triadlist.lock().unwrap().take().unwrap();
+    list
 }
 
 pub fn cores_nodes_range(range: Range<u32>) -> Vec<Triad> {
     println!("> Generating arms...");
     // 1. range is exclusive
-    // 2. triad has two arms with at least one and two vertices
-    // 3. triad has a middle vertex
-    // So we save time and subtract by 5
-    let arm_list = rooted_core_arms(range.end - 5);
+    // 2. triad has a middle vertex
+    // So we save time and subtract by 4
+    let arm_list = rooted_core_arms(range.end - 4);
     println!("\x1b[32m\t✔ Generated arms\x1b[00m");
 
     // Cached pairs of RCAs that cannot form a core triad
@@ -301,10 +311,10 @@ pub fn cores_nodes_range(range: Range<u32>) -> Vec<Triad> {
 }
 
 fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<Triad> {
-    cache.populate_nodes(num, &arm_list);
+    cache.populate_to_nodes(num, &arm_list);
 
     let path = format!("{}/nodes/cores_nodes{}", Globals::get().data, num);
-    let mut triadlist = Vec::<Triad>::new();
+    let triadlist = Mutex::new(Some(Vec::<Triad>::new()));
 
     if let Ok(file) = fs::read(&path) {
         let triads: Vec<String> = String::from_utf8_lossy(&file)
@@ -312,12 +322,13 @@ fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<
             .map(|x| x.to_owned())
             .collect();
         for triad in triads {
-            triadlist.push(Triad(
+            triadlist.lock().unwrap().as_mut().unwrap().push(Triad(
                 triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
             ));
         }
-    } else if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&path) {
-        for (i, j, k) in triplets_nodes(num).iter() {
+    } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
+        let file_locked = Mutex::new(file);
+        triplets_nodes(num).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                 if arm1.chars().next().unwrap() == '0' {
                     continue;
@@ -330,8 +341,14 @@ fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<
                             let triad = Triad::from(arm1, arm2, arm3);
                             if triad.is_core() {
                                 println!("Added {:?} to triadlist", &triad);
-                                triadlist.push(triad);
-                                if let Err(e) = writeln!(file, "{},{},{}", arm1, arm2, arm3) {
+                                triadlist.lock().unwrap().as_mut().unwrap().push(triad);
+                                if let Err(e) = writeln!(
+                                    file_locked.lock().unwrap(),
+                                    "{},{},{}",
+                                    arm1,
+                                    arm2,
+                                    arm3
+                                ) {
                                     eprintln!("Could not write to file: {}", e);
                                 }
                             }
@@ -339,9 +356,10 @@ fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<
                     }
                 }
             }
-        }
+        });
     }
-    triadlist
+    let list = triadlist.lock().unwrap().take().unwrap();
+    list
 }
 
 // A variant of precoloured AC, that restricts
@@ -387,6 +405,13 @@ impl Cache {
         false
     }
 
+    fn populate_to_nodes(&mut self, nodes: u32, arm_list: &Vec<Vec<String>>) {
+        for i in self.nodes..=nodes {
+            self.populate_nodes(i, arm_list);
+        }
+        self.nodes = nodes;
+    }
+
     fn populate_nodes(&mut self, num: u32, arm_list: &Vec<Vec<String>>) {
         let cache_path = format!("{}/nodes/pairs_nodes{}", Globals::get().data, num);
 
@@ -408,26 +433,44 @@ impl Cache {
                 let b = pair[3].parse::<usize>().unwrap();
                 self.pairs.insert(((len, a), (i, b)));
             }
-        } else if let Ok(mut file) = OpenOptions::new()
+        } else if let Ok(file) = OpenOptions::new()
             .append(true)
             .create(true)
             .open(&cache_path)
         {
-            for i in (num as f32 / 2.0).ceil() as u32..num - 2 {
-                for (a, arm1) in arm_list[i as usize].iter().enumerate() {
+            let file_locked = Mutex::new(file);
+            let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
+            pairs_nodes(num).par_iter().for_each(|[i, j]| {
+                for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                     for (b, arm2) in arm_list[(num - i - 1) as usize].iter().enumerate() {
                         let mut t = Triad::new();
                         t.add_arm(arm1);
                         t.add_arm(arm2);
                         if !t.is_rooted_core() {
-                            self.pairs.insert(((i as u32, a), (num - i - 1 as u32, b)));
-                            if let Err(e) = writeln!(file, "{},{},{},{}", i, a, num - i - 1, b) {
+                            pairs_locked
+                                .lock()
+                                .unwrap()
+                                .as_mut()
+                                .unwrap()
+                                .push(((*i as u32, a), (*j as u32, b)));
+                            if let Err(e) = writeln!(
+                                file_locked.lock().unwrap(),
+                                "{},{},{},{}",
+                                i,
+                                a,
+                                num - i - 1,
+                                b
+                            ) {
                                 eprintln!("Could not write to file: {}", e);
                             }
                         }
                     }
                 }
-            }
+            });
+            let pairs = pairs_locked.lock().unwrap().take().unwrap();
+            pairs.iter().for_each(|&pair| {
+                self.pairs.insert(pair);
+            });
         }
     }
 
@@ -459,60 +502,93 @@ impl Cache {
                 let b = pair[3].parse::<usize>().unwrap();
                 self.pairs.insert(((len, a), (i, b)));
             }
-        } else if let Ok(mut file) = OpenOptions::new()
+        } else if let Ok(file) = OpenOptions::new()
             .append(true)
             .create(true)
             .open(&cache_path)
         {
-            for i in 1..=len {
-                for (a, arm1) in arm_list[len as usize].iter().enumerate() {
-                    for (b, arm2) in arm_list[i as usize].iter().enumerate() {
+            let file_locked = Mutex::new(file);
+            let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
+            pairs_length(len).par_iter().for_each(|[i, j]| {
+                for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
+                    for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                         let mut t = Triad::new();
                         t.add_arm(arm1);
                         t.add_arm(arm2);
                         if !t.is_rooted_core() {
-                            self.pairs.insert(((len, a), (i, b)));
-                            if let Err(e) = writeln!(file, "{},{},{},{}", len, a, i, b) {
+                            pairs_locked
+                                .lock()
+                                .unwrap()
+                                .as_mut()
+                                .unwrap()
+                                .push(((*i, a), (*j, b)));
+                            if let Err(e) =
+                                writeln!(file_locked.lock().unwrap(), "{},{},{},{}", i, a, j, b)
+                            {
                                 eprintln!("Could not write to file: {}", e);
                             }
                         }
                     }
                 }
-            }
+            });
+            let pairs = pairs_locked.lock().unwrap().take().unwrap();
+            pairs.iter().for_each(|&pair| {
+                self.pairs.insert(pair);
+            });
         }
     }
 }
 
 // Triplets of arm lengths of triads with num nodes
-pub fn triplets_nodes(num: u32) -> Vec<(u32, u32, u32)> {
-    let mut vec = Vec::<(u32, u32, u32)>::new();
+pub fn triplets_nodes(num: u32) -> Vec<[u32; 3]> {
+    let mut vec = Vec::<[u32; 3]>::new();
     if num < 8 {
         return vec;
     }
 
     let max = ((num - 1) as f32 / 3.0).ceil() as u32;
 
-    for i in max..num - 3 {
+    for i in max..num - 2 {
         for j in 1..=min(num - i - 1, i) {
             let k = num - i - j - 1;
             if k <= j && k != 0 {
-                vec.push((i, j, num - i - j - 1));
+                vec.push([i, j, num - i - j - 1]);
             }
         }
     }
-    // println!("Triplets: {:?}", vec); // TODO remove
     vec
 }
 
 // Triplets of arm lengths of triads with maximum arm length len
-pub fn triplets_length(len: u32) -> Vec<(u32, u32, u32)> {
-    let mut vec = Vec::<(u32, u32, u32)>::new();
+pub fn triplets_length(len: u32) -> Vec<[u32; 3]> {
+    let mut vec = Vec::<[u32; 3]>::new();
 
     for i in 1..=len {
         for j in 1..=i {
-            vec.push((len, i, j));
+            vec.push([len, i, j]);
         }
     }
-    // println!("Triplets: {:?}", vec); // TODO remove
     vec
+}
+
+// Pairs of arm lengths of triads with num nodes
+pub fn pairs_nodes(num: u32) -> Vec<[u32; 2]> {
+    let mut pairs = Vec::<[u32; 2]>::new();
+    if num < 4 {
+        return pairs;
+    } else {
+        for i in ((num as f32 / 2.0).ceil() - 1.0) as u32..num - 2 {
+            pairs.push([i, num - i - 2]);
+        }
+    }
+    pairs
+}
+
+// Pairs of arm lengths of triads with maximum arm length len
+pub fn pairs_length(len: u32) -> Vec<[u32; 2]> {
+    let mut pairs = Vec::<[u32; 2]>::new();
+    for i in 1..=len {
+        pairs.push([len, i]);
+    }
+    pairs
 }

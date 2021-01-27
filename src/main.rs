@@ -1,7 +1,10 @@
 use std::{fs::OpenOptions, io::Write};
 
 use rayon::prelude::*;
-use triads::{configuration::Run, polymorphism::PolymorphismRegistry};
+use triads::{
+    configuration::Run, cores::pairs_nodes, cores::triplets_nodes,
+    polymorphism::PolymorphismRegistry,
+};
 use triads::{
     configuration::{Configuration, Globals},
     cores::{cores_length_range, cores_nodes_range, Triad},
@@ -23,7 +26,7 @@ fn main() {
                     triad, config.polymorphism
                 );
                 let path = String::from(format!(
-                    "{}{}_{}",
+                    "{}/{}_{}",
                     Globals::get().data,
                     &config.polymorphism,
                     triad.as_string()
@@ -96,5 +99,13 @@ fn main() {
 }
 
 // fn main() {
-//     println!("{}", num_cores_length(8));
+//     let a = 21;
+//     let pairs = pairs_nodes(a);
+//     for [i, j] in pairs.iter() {
+//         println!("[{},{}]", i, j);
+//     }
+//     // let triplets = triplets_nodes(a);
+//     // for [i, j, k] in triplets.iter() {
+//     //     println!("[{},{},{}]", i, j, k);
+//     // }
 // }

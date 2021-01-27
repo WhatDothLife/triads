@@ -3,7 +3,7 @@ use std::{
     collections::HashMap, collections::HashSet, fmt::Debug, hash::Hash, ops::Mul, sync::Mutex,
 };
 
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 #[derive(Clone, Debug)]
 pub struct Set<T: Eq> {
