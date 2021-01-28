@@ -8,7 +8,6 @@ use std::{
     io::Write,
     ops::Range,
     str::FromStr,
-    sync::Arc,
     sync::Mutex,
 };
 
@@ -283,6 +282,8 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
                 }
             }
         });
+    } else {
+        eprintln!("Could not find file: {}", &path);
     }
     let list = triadlist.lock().unwrap().take().unwrap();
     list
