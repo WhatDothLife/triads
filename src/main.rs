@@ -51,15 +51,19 @@ fn main() {
             println!("> Checking polymorphism...");
 
             triads.par_iter().for_each(|triad| {
-                println!("\t- Checking {:?}", &triad);
-
                 if polymorphism(&triad.adjacency_list()).is_none() {
                     println!(
                         "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
                         triad, config.polymorphism
                     );
 
-                    let path = format!("{}/nodes/triads", Globals::get().data);
+                    let path = format!(
+                        "{}/nodes/triads_{}{}-{}",
+                        Globals::get().data,
+                        &config.polymorphism,
+                        &config.length.start,
+                        &config.length.end
+                    );
 
                     if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
                         if let Err(e) = writeln!(file, "{:?}", &triad) {
@@ -77,15 +81,19 @@ fn main() {
             println!("> Checking polymorphism...");
 
             triads.par_iter().for_each(|triad| {
-                println!("\t- Checking {:?}", &triad);
-
                 if polymorphism(&triad.adjacency_list()).is_none() {
                     println!(
                         "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
                         &triad, config.polymorphism
                     );
 
-                    let path = format!("{}/length/triads", Globals::get().data);
+                    let path = format!(
+                        "{}/length/triads_{}{}-{}",
+                        Globals::get().data,
+                        &config.polymorphism,
+                        &config.length.start,
+                        &config.length.end
+                    );
 
                     if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
                         if let Err(e) = writeln!(file, "{:?}", &triad) {
@@ -97,15 +105,3 @@ fn main() {
         }
     }
 }
-
-// fn main() {
-//     let a = 21;
-//     let pairs = pairs_nodes(a);
-//     for [i, j] in pairs.iter() {
-//         println!("[{},{}]", i, j);
-//     }
-//     // let triplets = triplets_nodes(a);
-//     // for [i, j, k] in triplets.iter() {
-//     //     println!("[{},{},{}]", i, j, k);
-//     // }
-// }
