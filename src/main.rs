@@ -61,8 +61,8 @@ fn main() {
                         "{}/nodes/triads_{}{}-{}",
                         Globals::get().data,
                         &config.polymorphism,
-                        &config.length.start,
-                        &config.length.end
+                        &config.nodes.start,
+                        &config.nodes.end
                     );
 
                     if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
