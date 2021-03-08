@@ -5,6 +5,7 @@ use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
 pub enum Run {
+    DOT,
     Triad,
     Length,
     Nodes,
@@ -59,13 +60,19 @@ impl Configuration {
                     .help("Check a polymorphism on the given triad, e.g. 111,011,01"),
             )
             .arg(
+                Arg::with_name("dot")
+                    .short("D")
+                    .long("dot")
+                    .requires("triad")
+                    .help("Prints triad in dot format."),
+            )
+            .arg(
                 Arg::with_name("polymorphism")
                     .short("p")
                     .long("polymorphism")
                     .value_name("NAME")
                     .help("Polymorphism to check")
-                    .takes_value(true)
-                    .required(true),
+                    .takes_value(true),
             )
             .arg(
                 Arg::with_name("data")
@@ -93,7 +100,9 @@ impl Configuration {
         let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
         let data = args.value_of("data").unwrap_or("data").to_owned();
 
-        let run = if args.is_present("triad") {
+        let run = if args.is_present("dot") {
+            Run::DOT
+        } else if args.is_present("triad") {
             Run::Triad
         } else if args.is_present("nodes") {
             Run::Nodes

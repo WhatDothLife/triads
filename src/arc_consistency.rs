@@ -31,7 +31,7 @@ impl<T: Eq> Set<T> {
         self.items.len()
     }
 
-    fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.items.iter()
     }
 
@@ -62,7 +62,9 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 
     pub fn insert_vertex(&mut self, x: T) {
-        self.adjacency_list.insert(x, (Set::new(), Set::new()));
+        if !self.contains_vertex(&x) {
+            self.adjacency_list.insert(x, (Set::new(), Set::new()));
+        }
     }
 
     fn remove_vertex(&mut self, x: &T) {
@@ -142,6 +144,32 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
             .flatten()
             .collect::<Vec<_>>()
     }
+}
+
+pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
+    let mut list = AdjacencyList::<Vec<u32>>::new();
+    let mut split_vec = dot.split_terminator('\n').collect::<Vec<_>>();
+    split_vec.pop();
+    split_vec.remove(0);
+    let edges = split_vec
+        .iter()
+        .map(|x| x.split(&['[', ',', ' ', ']'][..]).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    for vec in edges {
+        let v1 = vec![
+            vec[1].parse::<u32>().unwrap(),
+            vec[3].parse::<u32>().unwrap(),
+        ];
+        let v2 = vec![
+            vec[7].parse::<u32>().unwrap(),
+            vec[9].parse::<u32>().unwrap(),
+        ];
+        list.insert_vertex(v1.clone());
+        list.insert_vertex(v2.clone());
+        list.insert_edge(&v1, &v2);
+    }
+
+    list
 }
 
 impl<T, U> Mul<&AdjacencyList<U>> for &AdjacencyList<T>
@@ -237,16 +265,11 @@ impl<T: Eq + Hash + Clone + Sync + Send + Debug> AdjacencyList<T> {
     }
 }
 
-pub fn write_dot<VertexID: Copy + Hash + Eq + std::fmt::Display>(graph: &AdjacencyList<VertexID>) {
+pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<VertexID>) {
     println!("digraph {}", '{');
-    for v in graph.vertex_iter() {
-        println!("{};", v);
-    }
-
     for (u, v) in graph.edge_vec() {
-        println!("{} -> {};", u, v);
+        println!("\"{:?}\" -> \"{:?}\";", u, v);
     }
-
     println!("{}", '}');
 }
 
@@ -301,14 +324,14 @@ pub fn arc_consistency<V0, V1>(
     g1: &AdjacencyList<V1>,
 ) -> HashMap<V0, Set<V1>>
 where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
 {
     // list of vertices from g1 for each g0
     let mut f = HashMap::new();
 
     for v0 in g0.vertex_iter() {
-        f.insert(*v0, g1.vertex_iter().cloned().collect::<Set<_>>());
+        f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
     }
 
     let edges = g0.edge_vec();
@@ -459,10 +482,8 @@ where
     changed
 }
 
-pub fn ac3_pruning_search<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> Option<HashMap<V0, V1>>
+// TODO add Hashmap parameter
+pub fn dfs_ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
@@ -473,7 +494,7 @@ where
     };
     let vec = f.clone().into_iter().collect::<Vec<_>>();
 
-    if let Some(map) = ac3_pruning_search_rec(g0, g1, f, vec.into_iter()) {
+    if let Some(map) = dfs_ac3_rec(g0, g1, f, vec.into_iter()) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -484,7 +505,7 @@ where
     }
 }
 
-fn ac3_pruning_search_rec<V0, V1, I>(
+fn dfs_ac3_rec<V0, V1, I>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     f: HashMap<V0, Set<V1>>,
@@ -509,8 +530,288 @@ where
         *map.get_mut(&u).unwrap() = set;
 
         if ac3_precolour(g0, g1, map.clone()).is_some() {
-            return ac3_pruning_search_rec(g0, g1, map, iter);
+            return dfs_ac3_rec(g0, g1, map, iter);
         }
     }
     return None;
+}
+
+pub fn sac<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    sac_precolour(g0, g1, HashMap::new())
+}
+
+pub fn sac_precolour<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    mut f: HashMap<V0, Set<V1>>,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    for v0 in g0.vertex_iter() {
+        if !f.contains_key(&v0) {
+            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
+        }
+    }
+
+    let e = match ac3_precolour(g0, g1, f) {
+        Some(v) => v,
+        None => return None,
+    };
+
+    for (k, v) in e.iter() {
+        for u in v.iter() {
+            let mut set = Set::new();
+            set.insert(u.clone());
+
+            let mut map = e.clone();
+            map.insert(k.clone(), set);
+
+            if let None = ac3_precolour(g0, g1, map) {
+                return None;
+            };
+        }
+    }
+    Some(e)
+}
+
+pub fn singleton_search<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    let mut map = match sac(&g0, &g1) {
+        Some(v) => v,
+        None => return None,
+    };
+
+    for (v, l) in map.clone().iter() {
+        let mut found = false;
+
+        for u in l.iter() {
+            let mut set = Set::new();
+            set.insert(u.clone());
+
+            let f = map.clone();
+            map.insert(v.clone(), set);
+            if let Some(e) = sac_precolour(g0, g1, f) {
+                map = e;
+                found = true;
+            };
+        }
+        if !found {
+            return None;
+        }
+    }
+
+    Some(map)
+}
+
+pub fn dfs_sac_backtrack<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    let f = match ac3(g0, g1) {
+        Some(v) => v,
+        None => return None,
+    };
+    let vec = f.clone().into_iter().collect::<Vec<_>>();
+    let mut backtracked = false;
+
+    if let Some(map) = dfs_sac_backtrack_rec(g0, g1, f, vec.into_iter(), &mut backtracked) {
+        if backtracked {
+            Some(
+                map.iter()
+                    .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
+                    .collect(),
+            )
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    }
+}
+
+fn dfs_sac_backtrack_rec<V0, V1, I>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: HashMap<V0, Set<V1>>,
+    mut iter: I,
+    backtracked: &mut bool,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    I: Iterator<Item = (V0, Set<V1>)>,
+{
+    let (u, l) = if let Some(v) = iter.next() {
+        v
+    } else {
+        return Some(f);
+    };
+
+    let mut counter = 0;
+    for v in l.iter() {
+        println!("Iterating {}", &counter);
+        let mut set = Set::new();
+        set.insert(v.clone());
+
+        let mut map = f.clone();
+        *map.get_mut(&u).unwrap() = set;
+
+        if sac_precolour(g0, g1, map.clone()).is_some() {
+            return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
+        }
+        counter += 1;
+    }
+    *backtracked = true;
+    return None;
+}
+
+fn ac_prune<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: &mut HashMap<V0, Set<V1>>,
+    m: &mut HashMap<V0, HashSet<V1>>,
+    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
+    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_ac: &mut Vec<(V0, V1)>,
+    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_sac: &mut Vec<(V0, V1)>,
+) where
+    V0: Eq + Clone + Hash + Clone,
+    V1: Eq + Clone + Hash + Clone,
+{
+    while !list_ac.is_empty() {
+        let (j, b) = list_ac.pop().unwrap();
+
+        for (i, a) in s_ac.get(&(j.clone(), b)).unwrap().iter() {
+            let mut count = counter
+                .get_mut(&(i.clone(), j.clone()))
+                .unwrap()
+                .get_mut(&a)
+                .unwrap();
+            *count -= 1;
+
+            if *count == 0 && !m.get(&i).unwrap().contains(&a) {
+                let mut domain = f.get(&i).unwrap().clone();
+                domain.remove(a);
+                f.insert(i.clone(), domain);
+
+                m.get_mut(&i).unwrap().insert(a.clone());
+
+                list_ac.push((i.clone(), a.clone()));
+
+                for (k, c) in s_sac.get(&(i.clone(), a.clone())).unwrap().iter() {
+                    list_sac.push((k.clone(), c.clone()));
+                }
+            }
+        }
+    }
+}
+
+fn sac_init<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: &HashMap<V0, Set<V1>>,
+    m: &mut HashMap<V0, HashSet<V1>>,
+    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
+    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_ac: &Vec<(V0, V1)>,
+    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_sac: &mut Vec<(V0, V1)>,
+) where
+    V0: Eq + Clone + Hash + Clone,
+    V1: Eq + Clone + Hash + Clone,
+{
+    let mut e = f.clone();
+    for i in g0.vertex_iter() {
+        for a in f.get(&i).unwrap().iter() {
+            let mut set = Set::new();
+            set.insert(a.clone());
+
+            let mut d = e.clone();
+            d.insert(i.clone(), set);
+
+            if let Some(_) = ac3_precolour(g0, g1, d) {
+                for (j, l) in e.iter() {
+                    for b in l.iter() {
+                        let vec = s_sac.get_mut(&(j.clone(), b.clone())).unwrap();
+                        vec.push((i.clone(), a.clone()));
+                    }
+                }
+            } else {
+                let mut domain = f.get(&i).unwrap().clone();
+                domain.remove(a);
+                e.insert(i.clone(), domain);
+
+                m.get_mut(&i).unwrap().insert(a.clone());
+                let mut list = vec![(i.clone(), a.clone())];
+
+                ac_prune(g0, g1, &mut e, m, counter, s_ac, &mut list, s_sac, list_sac);
+
+                for (k, c) in s_sac.get(&(i.clone(), a.clone())).unwrap().iter() {
+                    list_sac.push((k.clone(), c.clone()));
+                }
+            }
+        }
+    }
+}
+
+pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>, mut f: HashMap<V0, Set<V1>>)
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    let mut m = HashMap::<V0, HashSet<V1>>::new();
+    let mut counter = HashMap::<(V0, V0), HashMap<V1, u32>>::new();
+
+    let s_ac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
+    let mut list_ac = Vec::<(V0, V1)>::new();
+    let mut s_sac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
+    let mut list_sac = Vec::<(V0, V1)>::new();
+
+    for v0 in g0.vertex_iter() {
+        if !f.contains_key(&v0) {
+            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
+        }
+    }
+
+    // ac_init();
+    ac_prune(
+        g0,
+        g1,
+        &mut f,
+        &mut m,
+        &mut counter,
+        &s_ac,
+        &mut list_ac,
+        &mut s_sac,
+        &mut list_sac,
+    );
+    sac_init(
+        g0,
+        g1,
+        &f,
+        &mut m,
+        &mut counter,
+        &s_ac,
+        &list_ac,
+        &mut s_sac,
+        &mut list_sac,
+    );
+    // sac_prune();
 }

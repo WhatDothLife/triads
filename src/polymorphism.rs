@@ -4,7 +4,7 @@ use std::{
     hash::Hash,
 };
 
-use crate::arc_consistency::{ac3_pruning_search, AdjacencyList};
+use crate::arc_consistency::{dfs_ac3, dfs_sac_backtrack, AdjacencyList};
 
 pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     let r = x[1] == y[0] && x[1] == y[2];
@@ -47,9 +47,9 @@ where
 
 impl<T> Polymorphism<T>
 where
-    T: Clone + Eq + Hash + Sync + Send + Debug,
+    T: Clone + Eq + Hash + Sync + Send + Debug + Debug,
 {
-    fn find<P: Fn(&Vec<T>, &Vec<T>) -> bool>(
+    fn find_ac3<P: Fn(&Vec<T>, &Vec<T>) -> bool>(
         list: &AdjacencyList<T>,
         arity: u32,
         predicate: &P,
@@ -57,7 +57,24 @@ where
         let mut product: AdjacencyList<Vec<T>> = list.power(arity);
         product.contract_if(predicate);
 
-        if let Some(map) = ac3_pruning_search(&product, list) {
+        if let Some(map) = dfs_ac3(&product, list) {
+            return Some(Polymorphism { map });
+        } else {
+            None
+        }
+    }
+
+    fn find_sac_backtrack<P: Fn(&Vec<T>, &Vec<T>) -> bool>(
+        list: &AdjacencyList<T>,
+        arity: u32,
+        predicate: &P,
+    ) -> Option<Polymorphism<T>> {
+        let mut product: AdjacencyList<Vec<T>> = list.power(arity);
+        product.contract_if(predicate);
+
+        println!("Built power graph!");
+
+        if let Some(map) = dfs_sac_backtrack(&product, list) {
             return Some(Polymorphism { map });
         } else {
             None
@@ -78,20 +95,26 @@ where
     }
 }
 
-pub fn quaternary_siggers_polymorphism<T: Eq + Hash + Clone + Send + Sync + Debug>(
+pub fn quaternary_siggers<T: Eq + Hash + Clone + Send + Sync + Debug>(
     list: &AdjacencyList<T>,
 ) -> Option<Polymorphism<T>> {
-    if let Some(m) = Polymorphism::<T>::find(list, 2, &commutative) {
+    if let Some(m) = Polymorphism::<T>::find_ac3(list, 2, &commutative) {
         Some(m)
     } else {
-        Polymorphism::<T>::find(list, 4, &siggers)
+        Polymorphism::<T>::find_ac3(list, 4, &siggers)
     }
 }
 
-pub fn binary_commutative_polymorphism<T: Eq + Hash + Clone + Send + Sync + Debug>(
+pub fn binary_commutative<T: Eq + Hash + Clone + Send + Sync + Debug>(
     list: &AdjacencyList<T>,
 ) -> Option<Polymorphism<T>> {
-    Polymorphism::<T>::find(list, 2, &commutative)
+    Polymorphism::<T>::find_ac3(list, 2, &commutative)
+}
+
+pub fn binary_commutative_backtrack<T: Eq + Hash + Clone + Send + Sync + Debug>(
+    list: &AdjacencyList<T>,
+) -> Option<Polymorphism<T>> {
+    Polymorphism::<T>::find_sac_backtrack(list, 2, &commutative)
 }
 
 pub struct PolymorphismRegistry;
@@ -101,8 +124,9 @@ impl PolymorphismRegistry {
         polymorphism: &str,
     ) -> Box<dyn Fn(&AdjacencyList<T>) -> Option<Polymorphism<T>> + Sync> {
         match polymorphism {
-            "siggers" => Box::new(quaternary_siggers_polymorphism),
-            "commutative" => Box::new(binary_commutative_polymorphism),
+            "siggers" => Box::new(quaternary_siggers),
+            "commutative" => Box::new(binary_commutative),
+            "commutative_backtrack" => Box::new(binary_commutative_backtrack),
             &_ => panic!(format!(
                 "No polymorphism registered with name: {}",
                 polymorphism

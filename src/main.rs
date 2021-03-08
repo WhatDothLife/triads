@@ -1,9 +1,13 @@
-use std::{fs::OpenOptions, io::Write};
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+};
 
 use rayon::prelude::*;
 use triads::{
-    configuration::Run, cores::pairs_nodes, cores::triplets_nodes,
-    polymorphism::PolymorphismRegistry,
+    arc_consistency::{ac3, dfs_ac3, from_dot, sac, write_dot},
+    configuration::Run,
+    polymorphism::{commutative, PolymorphismRegistry},
 };
 use triads::{
     configuration::{Configuration, Globals},
@@ -14,9 +18,22 @@ fn main() {
     let config = Configuration::parse();
 
     match config.run {
+        Run::DOT => {
+            let triad = config.triad.parse::<Triad>().unwrap();
+            // let mut product = triad.adjacency_list().power(2);
+            // product.contract_if(&commutative);
+            // write_dot(&product);
+            // write_dot(&triad.adjacency_list());
+
+            if let Ok(file) = fs::read("comp_2") {
+                let comp = from_dot(&String::from_utf8_lossy(&file));
+                let map = ac3(&comp, &triad.adjacency_list());
+                println!("{:?}", &map);
+            }
+        }
         Run::Triad => {
             let triad = config.triad.parse::<Triad>().unwrap();
-            let polymorphism = PolymorphismRegistry::get(&config.polymorphism);
+            let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
             println!("> Checking polymorphism...");
 
@@ -105,3 +122,19 @@ fn main() {
         }
     }
 }
+
+// fn main() {
+//     let triad = Triad::from("01011111", "1010", "1111");
+//     let polymorphism = PolymorphismRegistry::get::<u32>("commutative_backtrack");
+
+//     if polymorphism(&triad.adjacency_list()).is_none() {
+//         println!("No polymorphism!");
+//     } else {
+//         println!("Polymorphism despite backtrack!");
+//     }
+
+//     // let triad = Triad::from("101000", "100", "111");
+//     // let list = triad.adjacency_list();
+//     // let map = sac(&list, &list).unwrap();
+//     // println!("{:?}", map);
+// }
