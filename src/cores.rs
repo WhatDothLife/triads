@@ -1,4 +1,4 @@
-use crate::arc_consistency::{ac3, ac3_precolour, AdjacencyList, Set};
+use crate::arc_consistency::{ac_3, ac_3_precolour, AdjacencyList, Set};
 use crate::configuration::Globals;
 use rayon::prelude::*;
 use std::{
@@ -115,7 +115,7 @@ impl Triad {
     /// ```
     pub fn is_core(&self) -> bool {
         let list = self.adjacency_list();
-        let map = ac3(&list, &list).unwrap();
+        let map = ac_3(&list, &list).unwrap();
         for (_, v) in map {
             if v.size() != 1 {
                 return false;
@@ -331,7 +331,7 @@ fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<
         let file_locked = Mutex::new(file);
         triplets_nodes(num).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
-                if arm1.chars().next().unwrap() == '0' {
+                if arm1.chars().next().unwrap() == '1' {
                     continue;
                 };
                 for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
@@ -372,7 +372,7 @@ fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     let mut pre_color = HashMap::<u32, Set<u32>>::new();
     pre_color.insert(0, set);
 
-    ac3_precolour(g, g, pre_color)
+    ac_3_precolour(g, g, pre_color)
 }
 
 // Cache to store pairs of RCAs that cannot form a core triad
@@ -443,25 +443,21 @@ impl Cache {
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
             pairs_nodes(num).par_iter().for_each(|[i, j]| {
                 for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
-                    for (b, arm2) in arm_list[(num - i - 1) as usize].iter().enumerate() {
+                    for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                         let mut t = Triad::new();
                         t.add_arm(arm1);
                         t.add_arm(arm2);
-                        if !t.is_rooted_core() {
+                        // First condition excludes permutations of arms with the same length
+                        if (i == j && a < b) || !t.is_rooted_core() {
                             pairs_locked
                                 .lock()
                                 .unwrap()
                                 .as_mut()
                                 .unwrap()
                                 .push(((*i as u32, a), (*j as u32, b)));
-                            if let Err(e) = writeln!(
-                                file_locked.lock().unwrap(),
-                                "{},{},{},{}",
-                                i,
-                                a,
-                                num - i - 1,
-                                b
-                            ) {
+                            if let Err(e) =
+                                writeln!(file_locked.lock().unwrap(), "{},{},{},{}", i, a, j, b)
+                            {
                                 eprintln!("Could not write to file: {}", e);
                             }
                         }
