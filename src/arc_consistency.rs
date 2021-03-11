@@ -319,10 +319,7 @@ where
 }
 
 // find mapping from g0 to g1
-pub fn arc_consistency<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> HashMap<V0, Set<V1>>
+pub fn ac_1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> HashMap<V0, Set<V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
@@ -382,7 +379,7 @@ where
 ///
 /// Returns None, if an empty domain is derived for some vertex v, otherwise an
 /// arc-consistent map is returned.
-pub fn ac3_precolour<V0, V1>(
+pub fn ac_3_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: HashMap<V0, Set<V1>>,
@@ -436,12 +433,12 @@ where
 }
 
 // ac3 is a specialized version of ac3_precolour
-pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+pub fn ac_3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    ac3_precolour(g0, g1, HashMap::new())
+    ac_3_precolour(g0, g1, HashMap::new())
 }
 
 // Implementation of the arc-reduce operation from ac3.
@@ -488,7 +485,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    let f = match ac3(g0, g1) {
+    let f = match ac_3(g0, g1) {
         Some(v) => v,
         None => return None,
     };
@@ -529,22 +526,22 @@ where
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        if ac3_precolour(g0, g1, map.clone()).is_some() {
+        if ac_3_precolour(g0, g1, map.clone()).is_some() {
             return dfs_ac3_rec(g0, g1, map, iter);
         }
     }
     return None;
 }
 
-pub fn sac<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+pub fn sac_1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    sac_precolour(g0, g1, HashMap::new())
+    sac_1_precolour(g0, g1, HashMap::new())
 }
 
-pub fn sac_precolour<V0, V1>(
+pub fn sac_1_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: HashMap<V0, Set<V1>>,
@@ -559,7 +556,7 @@ where
         }
     }
 
-    let e = match ac3_precolour(g0, g1, f) {
+    let e = match ac_3_precolour(g0, g1, f) {
         Some(v) => v,
         None => return None,
     };
@@ -572,7 +569,7 @@ where
             let mut map = e.clone();
             map.insert(k.clone(), set);
 
-            if let None = ac3_precolour(g0, g1, map) {
+            if let None = ac_3_precolour(g0, g1, map) {
                 return None;
             };
         }
@@ -588,7 +585,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    let mut map = match sac(&g0, &g1) {
+    let mut map = match sac_1(&g0, &g1) {
         Some(v) => v,
         None => return None,
     };
@@ -602,7 +599,7 @@ where
 
             let f = map.clone();
             map.insert(v.clone(), set);
-            if let Some(e) = sac_precolour(g0, g1, f) {
+            if let Some(e) = sac_1_precolour(g0, g1, f) {
                 map = e;
                 found = true;
             };
@@ -623,7 +620,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    let f = match ac3(g0, g1) {
+    let f = match ac_3(g0, g1) {
         Some(v) => v,
         None => return None,
     };
@@ -672,7 +669,7 @@ where
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        if sac_precolour(g0, g1, map.clone()).is_some() {
+        if sac_1_precolour(g0, g1, map.clone()).is_some() {
             return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
         }
         counter += 1;
@@ -746,7 +743,7 @@ fn sac_init<V0, V1>(
             let mut d = e.clone();
             d.insert(i.clone(), set);
 
-            if let Some(_) = ac3_precolour(g0, g1, d) {
+            if let Some(_) = ac_3_precolour(g0, g1, d) {
                 for (j, l) in e.iter() {
                     for b in l.iter() {
                         let vec = s_sac.get_mut(&(j.clone(), b.clone())).unwrap();
