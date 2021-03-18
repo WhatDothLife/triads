@@ -4,7 +4,10 @@ use std::{
     hash::Hash,
 };
 
-use crate::arc_consistency::{dfs_ac3, dfs_sac_backtrack, AdjacencyList};
+use crate::{
+    adjacency_list::AdjacencyList,
+    arc_consistency::{dfs_ac3, dfs_sac_backtrack},
+};
 
 pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     let r = x[1] == y[0] && x[1] == y[2];

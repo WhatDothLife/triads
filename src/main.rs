@@ -3,15 +3,13 @@ use std::{
     io::Write,
 };
 
-use rayon::prelude::*;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use triads::{
-    arc_consistency::{ac3, dfs_ac3, from_dot, sac, write_dot},
-    configuration::Run,
-    polymorphism::{commutative, PolymorphismRegistry},
-};
-use triads::{
-    configuration::{Configuration, Globals},
-    cores::{cores_length_range, cores_nodes_range, Triad},
+    adjacency_list::from_dot,
+    arc_consistency::ac_3,
+    configuration::{Configuration, Globals, Run},
+    polymorphism::PolymorphismRegistry,
+    triads::{cores_length_range, cores_nodes_range, Triad},
 };
 
 fn main() {
@@ -27,7 +25,7 @@ fn main() {
 
             if let Ok(file) = fs::read("comp_2") {
                 let comp = from_dot(&String::from_utf8_lossy(&file));
-                let map = ac3(&comp, &triad.adjacency_list());
+                let map = ac_3(&comp, &triad.adjacency_list());
                 println!("{:?}", &map);
             }
         }
@@ -124,17 +122,19 @@ fn main() {
 }
 
 // fn main() {
-//     let triad = Triad::from("01011111", "1010", "1111");
-//     let polymorphism = PolymorphismRegistry::get::<u32>("commutative_backtrack");
+//     // let triad = Triad::from("01011111", "1010", "1111");
+//     // let polymorphism = PolymorphismRegistry::get::<u32>("commutative_backtrack");
 
-//     if polymorphism(&triad.adjacency_list()).is_none() {
-//         println!("No polymorphism!");
-//     } else {
-//         println!("Polymorphism despite backtrack!");
-//     }
+//     // if polymorphism(&triad.adjacency_list()).is_none() {
+//     //     println!("No polymorphism!");
+//     // } else {
+//     //     println!("Polymorphism despite backtrack!");
+//     // }
 
 //     // let triad = Triad::from("101000", "100", "111");
 //     // let list = triad.adjacency_list();
 //     // let map = sac(&list, &list).unwrap();
 //     // println!("{:?}", map);
+
+//     println!("{:?}", triplets_nodes(9));
 // }
