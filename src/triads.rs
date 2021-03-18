@@ -280,11 +280,16 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
 
         triplets_length(len).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
-                if arm1.chars().next().unwrap() == '0' {
+                if arm1.chars().next().unwrap() == '1' {
                     continue;
                 };
                 for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                     for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
+                        if arm2.chars().next().unwrap() == '1'
+                            && arm3.chars().next().unwrap() == '1'
+                        {
+                            continue;
+                        };
                         if cache.cached((*i, a), (*j, b), (*k, c)) {
                             continue;
                         } else {
