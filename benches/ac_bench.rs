@@ -1,12 +1,12 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use triads::{arc_consistency::ac3, arc_consistency::arc_consistency, cores::Triad};
+use triads::{arc_consistency::ac_1, arc_consistency::ac_3, cores::Triad};
 
 fn ac_triad_12(c: &mut Criterion) {
     let triad = Triad::from("0101", "1011", "111");
     let list = triad.adjacency_list();
 
     c.bench_function("ac_12", |b| {
-        b.iter(|| arc_consistency(black_box(&list), black_box(&list)))
+        b.iter(|| ac_1(black_box(&list), black_box(&list)))
     });
 }
 
@@ -15,7 +15,7 @@ fn ac3_triad_12(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac3_12", |b| {
-        b.iter(|| ac3(black_box(&list), black_box(&list)))
+        b.iter(|| ac_3(black_box(&list), black_box(&list)))
     });
 }
 
@@ -24,7 +24,7 @@ fn ac_triad_24(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac_24", |b| {
-        b.iter(|| arc_consistency(black_box(&list), black_box(&list)))
+        b.iter(|| ac_1(black_box(&list), black_box(&list)))
     });
 }
 
@@ -33,7 +33,7 @@ fn ac3_triad_24(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac3_24", |b| {
-        b.iter(|| ac3(black_box(&list), black_box(&list)))
+        b.iter(|| ac_3(black_box(&list), black_box(&list)))
     });
 }
 
@@ -42,7 +42,7 @@ fn ac_triad_36(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac_36", |b| {
-        b.iter(|| arc_consistency(black_box(&list), black_box(&list)))
+        b.iter(|| ac_1(black_box(&list), black_box(&list)))
     });
 }
 
@@ -51,7 +51,7 @@ fn ac3_triad_36(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac3_36", |b| {
-        b.iter(|| ac3(black_box(&list), black_box(&list)))
+        b.iter(|| ac_3(black_box(&list), black_box(&list)))
     });
 }
 
@@ -60,7 +60,7 @@ fn ac_triad_39(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac_36", |b| {
-        b.iter(|| arc_consistency(black_box(&list), black_box(&list)))
+        b.iter(|| ac_1(black_box(&list), black_box(&list)))
     });
 }
 
@@ -69,7 +69,7 @@ fn ac3_triad_39(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac3_36", |b| {
-        b.iter(|| ac3(black_box(&list), black_box(&list)))
+        b.iter(|| ac_3(black_box(&list), black_box(&list)))
     });
 }
 
@@ -78,7 +78,7 @@ fn ac_triad_48(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac_48", |b| {
-        b.iter(|| arc_consistency(black_box(&list), black_box(&list)))
+        b.iter(|| ac_1(black_box(&list), black_box(&list)))
     });
 }
 
@@ -87,7 +87,7 @@ fn ac3_triad_48(c: &mut Criterion) {
     let list = triad.adjacency_list();
 
     c.bench_function("ac3_48", |b| {
-        b.iter(|| ac3(black_box(&list), black_box(&list)))
+        b.iter(|| ac_3(black_box(&list), black_box(&list)))
     });
 }
 
@@ -97,7 +97,7 @@ fn commutative_ac_196(c: &mut Criterion) {
     let product = list.power(2);
 
     c.bench_function("commutative_ac_196", |b| {
-        b.iter(|| arc_consistency(black_box(&product), black_box(&list)))
+        b.iter(|| ac_1(black_box(&product), black_box(&list)))
     });
 }
 
@@ -107,7 +107,7 @@ fn commutative_ac3_196(c: &mut Criterion) {
     let product = list.power(2);
 
     c.bench_function("commutative_ac3_196", |b| {
-        b.iter(|| ac3(black_box(&product), black_box(&list)))
+        b.iter(|| ac_3(black_box(&product), black_box(&list)))
     });
 }
 
@@ -120,7 +120,7 @@ fn commutative_ac_361(c: &mut Criterion) {
     let list2 = triad2.adjacency_list();
 
     c.bench_function("commutative_ac_361", |b| {
-        b.iter(|| arc_consistency(black_box(&product), black_box(&list2)))
+        b.iter(|| ac_1(black_box(&product), black_box(&list2)))
     });
 }
 
@@ -133,7 +133,7 @@ fn commutative_ac3_361(c: &mut Criterion) {
     let list2 = triad2.adjacency_list();
 
     c.bench_function("commutative_ac3_361", |b| {
-        b.iter(|| ac3(black_box(&product), black_box(&list2)))
+        b.iter(|| ac_3(black_box(&product), black_box(&list2)))
     });
 }
 
@@ -146,7 +146,7 @@ fn commutative_ac_576(c: &mut Criterion) {
     let list2 = triad2.adjacency_list();
 
     c.bench_function("commutative_ac_576", |b| {
-        b.iter(|| arc_consistency(black_box(&product), black_box(&list2)))
+        b.iter(|| ac_1(black_box(&product), black_box(&list2)))
     });
 }
 
@@ -159,7 +159,7 @@ fn commutative_ac3_576(c: &mut Criterion) {
     let list2 = triad2.adjacency_list();
 
     c.bench_function("commutative_ac3_576", |b| {
-        b.iter(|| ac3(black_box(&product), black_box(&list2)))
+        b.iter(|| ac_3(black_box(&product), black_box(&list2)))
     });
 }
 criterion_group!(
