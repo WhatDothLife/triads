@@ -109,6 +109,11 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         self.remove_vertex(&y);
     }
 
+    pub fn degree(&self, x: &T) -> u32 {
+        let edges = self.adjacency_list.get(x).unwrap();
+        (edges.0.size() + edges.1.size()) as u32
+    }
+
     pub fn insert_edge(&mut self, u: &T, v: &T) {
         self.adjacency_list.get_mut(u).unwrap().0.insert(v.clone());
         self.adjacency_list.get_mut(v).unwrap().1.insert(u.clone());

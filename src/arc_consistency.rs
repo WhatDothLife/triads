@@ -241,22 +241,32 @@ where
         }
     }
 
-    let e = match ac_3_precolour(g0, g1, f) {
+    let mut e = match ac_3_precolour(g0, g1, f) {
         Some(v) => v,
         None => return None,
     };
 
-    for (k, v) in e.iter() {
-        for u in v.iter() {
-            let mut set = Set::new();
-            set.insert(u.clone());
+    let mut changed = true;
+    while changed {
+        changed = false;
 
-            let mut map = e.clone();
-            map.insert(k.clone(), set);
+        let e2 = e.clone();
+        for (k, v) in e.iter_mut() {
+            for u in v.clone().iter() {
+                let mut set = Set::new();
+                set.insert(u.clone());
 
-            if let None = ac_3_precolour(g0, g1, map) {
+                let mut map = e2.clone();
+                map.insert(k.clone(), set);
+
+                if let None = ac_3_precolour(g0, g1, map) {
+                    v.remove(&u);
+                    changed = true;
+                };
+            }
+            if v.is_empty() {
                 return None;
-            };
+            }
         }
     }
     Some(e)
@@ -453,7 +463,7 @@ fn sac_init<V0, V1>(
     }
 }
 
-pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>, mut f: HashMap<V0, Set<V1>>)
+pub fn sac_2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>, mut f: HashMap<V0, Set<V1>>)
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,

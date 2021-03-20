@@ -1,10 +1,13 @@
 use crate::arc_consistency::{ac_3, ac_3_precolour};
 use crate::configuration::Globals;
+use core::fmt::Debug;
 use rayon::prelude::*;
 use std::{
     cmp::min,
     collections::{HashMap, HashSet},
+    env,
     fs::{self, OpenOptions},
+    hash::Hash,
     io::Write,
     ops::Range,
     str::FromStr,
@@ -280,16 +283,17 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
 
         triplets_length(len).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
-                if arm1.chars().next().unwrap() == '1' {
-                    continue;
-                };
                 for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                     for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
-                        if arm2.chars().next().unwrap() == '1'
-                            && arm3.chars().next().unwrap() == '1'
-                        {
+                        let mut count = 0;
+                        for arm in [arm1, arm2, arm3].iter() {
+                            if arm.chars().next().unwrap() == '1' {
+                                count += 1;
+                            }
+                        }
+                        if count > 1 {
                             continue;
-                        };
+                        }
                         if cache.cached((*i, a), (*j, b), (*k, c)) {
                             continue;
                         } else {
@@ -338,11 +342,17 @@ fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<
         let file_locked = Mutex::new(file);
         triplets_nodes(num).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
-                if arm1.chars().next().unwrap() == '1' {
-                    continue;
-                };
                 for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                     for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
+                        let mut count = 0;
+                        for arm in [arm1, arm2, arm3].iter() {
+                            if arm.chars().next().unwrap() == '1' {
+                                count += 1;
+                            }
+                        }
+                        if count > 1 {
+                            continue;
+                        }
                         if cache.cached((*i, a), (*j, b), (*k, c)) {
                             continue;
                         } else {
@@ -595,4 +605,89 @@ pub fn pairs_length(len: u32) -> Vec<[u32; 2]> {
         pairs.push([len, i]);
     }
     pairs
+}
+
+pub fn from_mini() {
+    let arguments: Vec<String> = env::args().collect();
+    let path = arguments[1].clone();
+    // let path = "../small-trees/data/core-triads8.trees";
+
+    if let Ok(file) = fs::read(&path) {
+        let trees: Vec<String> = String::from_utf8_lossy(&file)
+            .split_terminator('\n')
+            .map(|x| x.to_string())
+            .collect();
+        let trees2 = trees
+            .iter()
+            .map(|x| {
+                x.split(&[',', '[', ']', ' '][..])
+                    .filter(|&x| !x.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        for tree in trees2 {
+            let mut list = AdjacencyList::<u32>::new();
+            for (i, _) in tree.iter().enumerate().step_by(2) {
+                let v1 = tree[i].parse::<u32>().unwrap();
+                let v2 = tree[i + 1].parse::<u32>().unwrap();
+
+                list.insert_vertex(v1);
+                list.insert_vertex(v2);
+                list.insert_edge(&v1, &v2);
+            }
+            println!("{:?}", list.edge_vec());
+
+            let mut edges = list.edge_vec().into_iter().collect::<HashSet<_>>();
+            let mut triad_vec = Vec::<String>::new();
+
+            for u in list.vertex_iter() {
+                if list.degree(u) == 3 {
+                    println!("{}", &u);
+                    for (v, w) in list.edge_vec().iter() {
+                        if u == v {
+                            edges.remove(&(*v, *w));
+                            let s = arm_string(w.clone(), &mut edges, String::new());
+                            triad_vec.push(String::from("0") + &s);
+                        } else if u == w {
+                            edges.remove(&(*v, *w));
+                            let s = arm_string(v.clone(), &mut edges, String::new());
+                            triad_vec.push(String::from("1") + &s);
+                        }
+                    }
+                }
+            }
+
+            triad_vec.sort_by(|a, b| b.len().cmp(&a.len()));
+            println!("{:?}", triad_vec);
+
+            let mut path2 = path.clone();
+            path2.push('2');
+
+            if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path2) {
+                if let Err(e) = writeln!(file, "{},{},{}", triad_vec[0], triad_vec[1], triad_vec[2])
+                {
+                    eprintln!("Could not write to file: {}", e);
+                }
+            }
+        }
+    }
+}
+
+fn arm_string<T>(u: T, vec: &mut HashSet<(T, T)>, mut s: String) -> String
+where
+    T: Eq + Hash + Clone + Debug,
+{
+    for (v, w) in vec.clone().iter() {
+        if u == *v {
+            s.push('0');
+            vec.remove(&(v.clone(), w.clone()));
+            return arm_string(w.clone(), vec, s);
+        } else if u == *w {
+            s.push('1');
+            vec.remove(&(v.clone(), w.clone()));
+            return arm_string(v.clone(), vec, s);
+        }
+    }
+    s
 }

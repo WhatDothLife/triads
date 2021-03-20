@@ -6,10 +6,10 @@ use std::{
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use triads::{
     adjacency_list::from_dot,
-    arc_consistency::ac_3,
+    arc_consistency::{ac_1, ac_3, sac_1},
     configuration::{Configuration, Globals, Run},
     polymorphism::PolymorphismRegistry,
-    triads::{cores_length_range, cores_nodes_range, Triad},
+    triads::{cores_length_range, cores_nodes_range, from_mini, Triad},
 };
 
 fn main() {
@@ -122,7 +122,6 @@ fn main() {
 }
 
 // fn main() {
-//     // let triad = Triad::from("01011111", "1010", "1111");
 //     // let polymorphism = PolymorphismRegistry::get::<u32>("commutative_backtrack");
 
 //     // if polymorphism(&triad.adjacency_list()).is_none() {
@@ -131,10 +130,11 @@ fn main() {
 //     //     println!("Polymorphism despite backtrack!");
 //     // }
 
-//     // let triad = Triad::from("101000", "100", "111");
+//     // let triad = Triad::from("0101111", "10", "11");
+//     // let triad2 = Triad::from("101000", "100", "111");
 //     // let list = triad.adjacency_list();
-//     // let map = sac(&list, &list).unwrap();
+//     // let list2 = triad2.adjacency_list();
+//     // let map = ac_3(&list, &list2);
 //     // println!("{:?}", map);
-
-//     println!("{:?}", triplets_nodes(9));
+//     from_mini();
 // }
