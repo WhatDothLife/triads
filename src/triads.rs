@@ -9,7 +9,6 @@ use std::{
     fs::{self, OpenOptions},
     hash::Hash,
     io::Write,
-    ops::Range,
     str::FromStr,
     sync::Mutex,
 };
@@ -222,48 +221,7 @@ fn num_cores_length(len: u32) -> usize {
     (0.005 * (9 as u32).pow(len) as f32) as usize
 }
 
-pub fn cores_length_range(range: Range<u32>) -> Vec<Triad> {
-    println!("> Generating arms...");
-    let arm_list = rooted_core_arms(range.end - 1);
-    println!("\x1b[32m\t✔ Generated arms\x1b[00m");
-
-    // Cached pairs of RCAs that cannot form a core triad
-    let mut cache = Cache::new();
-    let mut triadlist = Vec::<_>::new();
-
-    println!("> Generating triads...");
-    for i in range {
-        println!("\t- Generating triads with length {}", i);
-        triadlist.push(cores_length(&arm_list, &mut cache, i));
-    }
-    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
-
-    triadlist.into_iter().flatten().collect()
-}
-
-pub fn cores_nodes_range(range: Range<u32>) -> Vec<Triad> {
-    println!("> Generating arms...");
-    // 1. range is exclusive
-    // 2. triad has a middle vertex
-    // So we save time and subtract by 4
-    let arm_list = rooted_core_arms(range.end - 4);
-    println!("\x1b[32m\t✔ Generated arms\x1b[00m");
-
-    // Cached pairs of RCAs that cannot form a core triad
-    let mut cache = Cache::new();
-    let mut triadlist = Vec::<_>::new();
-
-    println!("> Generating triads...");
-    for num in range {
-        println!("\t- Generating triads with {} nodes", num);
-        triadlist.push(cores_nodes(&arm_list, &mut cache, num));
-    }
-    println!("\x1b[32m\t✔ Generated triads\x1b[00m");
-
-    triadlist.into_iter().flatten().collect()
-}
-
-fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec<Triad> {
+pub fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec<Triad> {
     let path = format!("{}/length/cores_length{}", Globals::get().data, len);
     let triadlist = Mutex::new(Some(Vec::<Triad>::with_capacity(num_cores_length(len))));
 
@@ -322,7 +280,7 @@ fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) -> Vec
     list
 }
 
-fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<Triad> {
+pub fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<Triad> {
     cache.populate_to_nodes(num, &arm_list);
 
     let path = format!("{}/nodes/cores_nodes{}", Globals::get().data, num);
@@ -358,7 +316,6 @@ fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> Vec<
                         } else {
                             let triad = Triad::from(arm1, arm2, arm3);
                             if triad.is_core() {
-                                println!("Added {:?} to triadlist", &triad);
                                 triadlist.lock().unwrap().as_mut().unwrap().push(triad);
                                 if let Err(e) = writeln!(
                                     file_locked.lock().unwrap(),
@@ -393,23 +350,19 @@ fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
 }
 
 // Cache to store pairs of RCAs that cannot form a core triad
-struct Cache {
+pub struct Cache {
     pairs: HashSet<((u32, usize), (u32, usize))>,
     nodes: u32,
     length: u32,
 }
 
 impl Cache {
-    fn new() -> Cache {
+    pub fn new() -> Cache {
         Cache {
             pairs: HashSet::<((u32, usize), (u32, usize))>::new(),
             nodes: 0,
             length: 0,
         }
-    }
-
-    fn insert(&mut self, value: ((u32, usize), (u32, usize))) {
-        self.pairs.insert(value);
     }
 
     fn cached(&self, a: (u32, usize), b: (u32, usize), c: (u32, usize)) -> bool {

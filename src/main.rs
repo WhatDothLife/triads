@@ -9,7 +9,7 @@ use triads::{
     arc_consistency::{ac_1, ac_3, sac_1},
     configuration::{Configuration, Globals, Run},
     polymorphism::PolymorphismRegistry,
-    triads::{cores_length_range, cores_nodes_range, from_mini, Triad},
+    triads::{cores_length, cores_nodes, from_mini, rooted_core_arms, Cache, Triad},
 };
 
 fn main() {
@@ -60,63 +60,92 @@ fn main() {
         }
 
         Run::Nodes => {
-            let triads = cores_nodes_range(config.nodes.clone());
             let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
-            println!("> Checking polymorphism...");
+            println!("> Generating arms...");
+            // 1. range is exclusive
+            // 2. triad has a middle vertex
+            // save time and subtract by 4
+            let arm_list = rooted_core_arms(config.nodes.end - 4);
+            println!("\x1b[32m\t✔ Generated arms\x1b[00m");
 
-            triads.par_iter().for_each(|triad| {
-                if polymorphism(&triad.adjacency_list()).is_none() {
-                    println!(
-                        "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
-                        triad, config.polymorphism
-                    );
+            // Cached pairs of RCAs that cannot form a core triad
+            let mut cache = Cache::new();
 
-                    let path = format!(
-                        "{}/nodes/triads_{}{}-{}",
-                        Globals::get().data,
-                        &config.polymorphism,
-                        &config.nodes.start,
-                        &config.nodes.end
-                    );
+            for i in config.nodes.clone() {
+                println!("> Generating core triads with {} nodes...", i);
+                let triads = cores_nodes(&arm_list, &mut cache, i);
+                println!("\x1b[32m\t✔ Generated core triads\x1b[00m");
 
-                    if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
-                        if let Err(e) = writeln!(file, "{:?}", &triad) {
-                            eprintln!("Couldn't write to file: {}", e);
+                println!("> Checking polymorphism...");
+
+                triads.par_iter().for_each(|triad| {
+                    if polymorphism(&triad.adjacency_list()).is_none() {
+                        println!(
+                            "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
+                            triad, config.polymorphism
+                        );
+
+                        let path = format!(
+                            "{}/nodes/triads_{}_{}",
+                            Globals::get().data,
+                            &config.polymorphism,
+                            i
+                        );
+
+                        if let Ok(mut file) =
+                            OpenOptions::new().append(true).create(true).open(path)
+                        {
+                            if let Err(e) = writeln!(file, "{:?}", &triad) {
+                                eprintln!("Couldn't write to file: {}", e);
+                            }
                         }
                     }
-                }
-            })
+                })
+            }
         }
 
         Run::Length => {
-            let triads = cores_length_range(config.length.clone());
             let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
 
-            println!("> Checking polymorphism...");
+            println!("> Generating arms...");
+            let arm_list = rooted_core_arms(config.length.end - 1);
+            println!("\x1b[32m\t✔ Generated arms\x1b[00m");
 
-            triads.par_iter().for_each(|triad| {
-                if polymorphism(&triad.adjacency_list()).is_none() {
-                    println!(
-                        "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
-                        &triad, config.polymorphism
-                    );
+            // Cached pairs of RCAs that cannot form a core triad
+            let mut cache = Cache::new();
 
-                    let path = format!(
-                        "{}/length/triads_{}{}-{}",
-                        Globals::get().data,
-                        &config.polymorphism,
-                        &config.length.start,
-                        &config.length.end
-                    );
+            for i in config.length.clone() {
+                println!("> Generating core triads with armlength {}...", i);
+                let triads = cores_length(&arm_list, &mut cache, i);
+                println!("\x1b[32m\t✔ Generated core triads\x1b[00m");
 
-                    if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
-                        if let Err(e) = writeln!(file, "{:?}", &triad) {
-                            eprintln!("Couldn't write to file: {}", e);
+                println!("> Checking polymorphism...");
+
+                triads.par_iter().for_each(|triad| {
+                    if polymorphism(&triad.adjacency_list()).is_none() {
+                        println!(
+                            "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
+                            &triad, config.polymorphism
+                        );
+
+                        let path = format!(
+                            "{}/length/triads_{}_{}",
+                            Globals::get().data,
+                            &config.polymorphism,
+                            i
+                        );
+
+                        if let Ok(mut file) =
+                            OpenOptions::new().append(true).create(true).open(path)
+                        {
+                            if let Err(e) = writeln!(file, "{:?}", &triad) {
+                                eprintln!("Couldn't write to file: {}", e);
+                            }
                         }
                     }
-                }
-            })
+                })
+            }
         }
     }
 }
