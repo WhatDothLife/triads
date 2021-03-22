@@ -5,11 +5,11 @@ use std::{
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use triads::{
-    adjacency_list::from_dot,
+    adjacency_list::{from_dot, write_dot},
     arc_consistency::{ac_1, ac_3, sac_1},
     configuration::{Configuration, Globals, Run},
-    polymorphism::PolymorphismRegistry,
-    triads::{cores_length, cores_nodes, from_mini, rooted_core_arms, Cache, Triad},
+    polymorphism::{commutative, PolymorphismRegistry},
+    triads::{cores_length, cores_nodes, rooted_core_arms, Cache, Triad},
 };
 
 fn main() {
@@ -18,16 +18,10 @@ fn main() {
     match config.run {
         Run::DOT => {
             let triad = config.triad.parse::<Triad>().unwrap();
-            // let mut product = triad.adjacency_list().power(2);
-            // product.contract_if(&commutative);
-            // write_dot(&product);
-            // write_dot(&triad.adjacency_list());
-
-            if let Ok(file) = fs::read("comp_2") {
-                let comp = from_dot(&String::from_utf8_lossy(&file));
-                let map = ac_3(&comp, &triad.adjacency_list());
-                println!("{:?}", &map);
-            }
+            let mut product = triad.adjacency_list().power(2);
+            product.contract_if(&commutative);
+            write_dot(&product);
+            write_dot(&triad.adjacency_list());
         }
         Run::Triad => {
             let triad = config.triad.parse::<Triad>().unwrap();
