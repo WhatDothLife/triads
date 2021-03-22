@@ -163,7 +163,7 @@ fn commutative_ac3_576(c: &mut Criterion) {
     });
 }
 
-fn siggers_ac_(c: &mut Criterion) {
+fn siggers_ac_22(c: &mut Criterion) {
     let triad = Triad::from("10110000", "1001111", "010111");
     let list = triad.adjacency_list();
     let product = list.power(4);
@@ -175,7 +175,7 @@ fn siggers_ac_(c: &mut Criterion) {
         b.iter(|| ac_1(black_box(&product), black_box(&list2)))
     });
 }
-fn siggers_ac3_576(c: &mut Criterion) {
+fn siggers_ac3_22(c: &mut Criterion) {
     let triad = Triad::from("10110000", "1001111", "010111");
     let list = triad.adjacency_list();
     let product = list.power(4);
@@ -187,6 +187,7 @@ fn siggers_ac3_576(c: &mut Criterion) {
         b.iter(|| ac_3(black_box(&product), black_box(&list2)))
     });
 }
+criterion_group!(siggers, siggers_ac_22, siggers_ac3_22);
 criterion_group!(
     ac,
     ac_triad_12,
@@ -215,4 +216,4 @@ criterion_group!(
     commutative_ac3_361,
     commutative_ac3_576
 );
-criterion_main!(ac, ac_3);
+criterion_main!(siggers);
