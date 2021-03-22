@@ -1,9 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
+    error::Error,
     fmt::Debug,
     hash::Hash,
     iter::FromIterator,
     ops::Mul,
+    str::FromStr,
     sync::Mutex,
 };
 
@@ -284,6 +286,26 @@ pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<Vert
         println!("\"{:?}\" -> \"{:?}\";", u, v);
     }
     println!("{}", '}');
+}
+
+impl<T: Eq + Hash + Clone + FromStr> AdjacencyList<T> {
+    pub fn from_edge_list(list: String) -> Result<AdjacencyList<T>, <T as FromStr>::Err> {
+        let tree = list
+            .split(&[',', '[', ']', ' '][..])
+            .filter(|&x| !x.is_empty())
+            .collect::<Vec<_>>();
+
+        let mut list = AdjacencyList::<T>::new();
+        for (i, _) in tree.iter().enumerate().step_by(2) {
+            let v1 = tree[i].parse::<T>()?;
+            let v2 = tree[i + 1].parse::<T>()?;
+
+            list.insert_vertex(v1.clone());
+            list.insert_vertex(v2.clone());
+            list.insert_edge(&v1, &v2);
+        }
+        Ok(list)
+    }
 }
 
 fn is_homomorphism<V0, V1>(
