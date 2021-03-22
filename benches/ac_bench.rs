@@ -171,7 +171,12 @@ fn siggers_ac_22(c: &mut Criterion) {
     let triad2 = Triad::from("01011", "10111", "1111");
     let list2 = triad2.adjacency_list();
 
-    c.bench_function("siggers_ac_576", |b| {
+    let mut group = c.benchmark_group("size");
+    // Configure Criterion.rs to detect smaller differences and increase sample size to improve
+    // precision and counteract the resulting noise.
+    group.sample_size(10);
+
+    group.bench_function("siggers_ac_576", |b| {
         b.iter(|| ac_1(black_box(&product), black_box(&list2)))
     });
 }
@@ -182,8 +187,12 @@ fn siggers_ac3_22(c: &mut Criterion) {
 
     let triad2 = Triad::from("01011", "10111", "1111");
     let list2 = triad2.adjacency_list();
+    let mut group = c.benchmark_group("size");
+    // Configure Criterion.rs to detect smaller differences and increase sample size to improve
+    // precision and counteract the resulting noise.
+    group.sample_size(10);
 
-    c.bench_function("siggers_ac3_576", |b| {
+    group.bench_function("siggers_ac3_576", |b| {
         b.iter(|| ac_3(black_box(&product), black_box(&list2)))
     });
 }
