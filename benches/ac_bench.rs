@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use triads::{arc_consistency::ac_1, arc_consistency::ac_3, cores::Triad};
+use triads::{arc_consistency::ac_1, arc_consistency::ac_3, triads::Triad};
 
 fn ac_triad_12(c: &mut Criterion) {
     let triad = Triad::from("0101", "1011", "111");
@@ -171,7 +171,7 @@ fn siggers_ac_22(c: &mut Criterion) {
     let triad2 = Triad::from("01011", "10111", "1111");
     let list2 = triad2.adjacency_list();
 
-    c.bench_function("commutative_ac_576", |b| {
+    c.bench_function("siggers_ac_576", |b| {
         b.iter(|| ac_1(black_box(&product), black_box(&list2)))
     });
 }
@@ -183,7 +183,7 @@ fn siggers_ac3_22(c: &mut Criterion) {
     let triad2 = Triad::from("01011", "10111", "1111");
     let list2 = triad2.adjacency_list();
 
-    c.bench_function("commutative_ac3_576", |b| {
+    c.bench_function("siggers_ac3_576", |b| {
         b.iter(|| ac_3(black_box(&product), black_box(&list2)))
     });
 }
@@ -196,14 +196,14 @@ criterion_group!(
     ac_triad_39,
     ac_triad_48
 );
-criterion_group!(
-    ac_3,
-    ac3_triad_12,
-    ac3_triad_24,
-    ac3_triad_36,
-    ac3_triad_39,
-    ac3_triad_48
-);
+// criterion_group!(
+//     ac_3,
+//     ac3_triad_12,
+//     ac3_triad_24,
+//     ac3_triad_36,
+//     ac3_triad_39,
+//     ac3_triad_48
+// );
 criterion_group!(
     polymorphism_ac,
     commutative_ac_196,
