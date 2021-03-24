@@ -6,7 +6,7 @@ use std::{
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use triads::{
     adjacency_list::{from_dot, write_dot},
-    arc_consistency::{ac_1, ac_3, sac_1},
+    arc_consistency::{ac1, ac3, sac1},
     configuration::{Configuration, Globals, Run},
     polymorphism::{commutative, PolymorphismRegistry},
     triads::{cores_length, cores_nodes, rooted_core_arms, Cache, Triad},

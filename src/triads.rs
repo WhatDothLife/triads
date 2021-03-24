@@ -1,11 +1,10 @@
-use crate::arc_consistency::{ac_3, ac_3_precolour};
+use crate::arc_consistency::{ac3, ac_3_precolour};
 use crate::configuration::Globals;
 use core::fmt::Debug;
 use rayon::prelude::*;
 use std::{
     cmp::min,
     collections::{HashMap, HashSet},
-    env,
     fs::{self, OpenOptions},
     hash::Hash,
     io::Write,
@@ -119,7 +118,7 @@ impl Triad {
     /// ```
     pub fn is_core(&self) -> bool {
         let list = self.adjacency_list();
-        let map = ac_3(&list, &list).unwrap();
+        let map = ac3(&list, &list).unwrap();
         for (_, v) in map {
             if v.size() != 1 {
                 return false;
@@ -161,10 +160,20 @@ impl Triad {
 
 impl FromStr for Triad {
     type Err = ();
+    //    TODO throw Error
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let arms: Vec<String> = s.split(',').map(|x| x.to_owned()).collect();
-        let triad = Triad::from(&arms[0], &arms[1], &arms[2]); // TODO make safe by returning Err
+        let arm1 = &arms
+            .get(0)
+            .expect(&format!("Unable to parse triad from {}", s));
+        let arm2 = &arms
+            .get(1)
+            .expect(&format!("Unable to parse triad from {}", s));
+        let arm3 = &arms
+            .get(2)
+            .expect(&format!("Unable to parse triad from {}", s));
+        let triad = Triad::from(arm1, arm2, arm3);
 
         Ok(triad)
     }
@@ -208,7 +217,7 @@ pub fn rooted_core_arms(max_length: u32) -> Vec<Vec<String>> {
                 })
                 .collect();
         } else {
-            // TODO
+            panic!("Could not create file: {}", &path);
         };
         last = arm_list_len.clone();
         arm_list.push(arm_list_len)
@@ -274,7 +283,7 @@ pub fn cores_length(arm_list: &Vec<Vec<String>>, cache: &mut Cache, len: u32) ->
             }
         });
     } else {
-        eprintln!("Could not find file: {}", &path);
+        panic!("Could not create file: {}", &path);
     }
     let list = triadlist.lock().unwrap().take().unwrap();
     list
@@ -332,6 +341,8 @@ pub fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> 
                 }
             }
         });
+    } else {
+        panic!("Could not create file: {}", &path);
     }
     let list = triadlist.lock().unwrap().take().unwrap();
     list
@@ -384,9 +395,9 @@ impl Cache {
     }
 
     fn populate_nodes(&mut self, num: u32, arm_list: &Vec<Vec<String>>) {
-        let cache_path = format!("{}/nodes/pairs_nodes{}", Globals::get().data, num);
+        let path = format!("{}/nodes/pairs_nodes{}", Globals::get().data, num);
 
-        if let Ok(file) = fs::read(&cache_path) {
+        if let Ok(file) = fs::read(&path) {
             let pairs = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| {
@@ -404,11 +415,7 @@ impl Cache {
                 let b = pair[3].parse::<usize>().unwrap();
                 self.pairs.insert(((len, a), (i, b)));
             }
-        } else if let Ok(file) = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&cache_path)
-        {
+        } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
             let file_locked = Mutex::new(file);
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
             pairs_nodes(num).par_iter().for_each(|[i, j]| {
@@ -438,6 +445,8 @@ impl Cache {
             pairs.iter().for_each(|&pair| {
                 self.pairs.insert(pair);
             });
+        } else {
+            panic!("Could not create file: {}", &path);
         }
     }
 
@@ -449,9 +458,9 @@ impl Cache {
     }
 
     fn populate_length(&mut self, len: u32, arm_list: &Vec<Vec<String>>) {
-        let cache_path = format!("{}/length/pairs_length{}", Globals::get().data, len);
+        let path = format!("{}/length/pairs_length{}", Globals::get().data, len);
 
-        if let Ok(file) = fs::read(&cache_path) {
+        if let Ok(file) = fs::read(&path) {
             let pairs = String::from_utf8_lossy(&file)
                 .split_terminator('\n')
                 .map(|x| {
@@ -469,11 +478,7 @@ impl Cache {
                 let b = pair[3].parse::<usize>().unwrap();
                 self.pairs.insert(((len, a), (i, b)));
             }
-        } else if let Ok(file) = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(&cache_path)
-        {
+        } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
             let file_locked = Mutex::new(file);
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
             pairs_length(len).par_iter().for_each(|[i, j]| {
@@ -502,6 +507,8 @@ impl Cache {
             pairs.iter().for_each(|&pair| {
                 self.pairs.insert(pair);
             });
+        } else {
+            panic!("Could not create file: {}", &path);
         }
     }
 }

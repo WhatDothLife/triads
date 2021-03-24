@@ -2,14 +2,33 @@ use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
 use crate::adjacency_list::{AdjacencyList, Set};
 
-// find mapping from g0 to g1
-pub fn ac_1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> HashMap<V0, Set<V1>>
+type Domains<V0, V1> = HashMap<V0, Set<V1>>;
+
+pub trait ArcConsistency<V0: Eq + Clone + Hash, V1: Eq + Clone + Hash>:
+    Fn(&AdjacencyList<V0>, &AdjacencyList<V1>, Domains<V0, V1>) -> Option<Domains<V0, V1>>
+{
+}
+
+impl<V0: Eq + Clone + Hash, V1: Eq + Clone + Hash, F> ArcConsistency<V0, V1> for F where
+    F: Fn(&AdjacencyList<V0>, &AdjacencyList<V1>, Domains<V0, V1>) -> Option<Domains<V0, V1>>
+{
+}
+
+/// Implementation of the AC-1 algorithm by TODO, specialized to find
+/// graph homomorphisms.
+///
+/// f represents a list of vertices for each vertex of g0. If there's no list
+/// specified for a vertex v, a list of all nodes of g1 is assigned to v.
+///
+/// Returns None, if an empty domain is derived for some vertex v, otherwise
+/// arc-consistent domains are returned.
+pub fn ac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Domains<V0, V1>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
     // list of vertices from g1 for each g0
-    let mut f = HashMap::new();
+    let mut f = Domains::new();
 
     for v0 in g0.vertex_iter() {
         f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
@@ -59,7 +78,7 @@ where
 /// Implementation of the AC-3 algorithm by Mackworth 1977, specialized to find
 /// graph homomorphisms.
 ///
-/// f represents an a list of vertices for each vertex of g0 If there's no list
+/// f represents a list of vertices for each vertex of g0. If there's no list
 /// specified for a vertex v, a list of all nodes of g1 is assigned to v.
 ///
 /// Returns None, if an empty domain is derived for some vertex v, otherwise an
@@ -67,8 +86,8 @@ where
 pub fn ac_3_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    mut f: HashMap<V0, Set<V1>>,
-) -> Option<HashMap<V0, Set<V1>>>
+    mut f: Domains<V0, V1>,
+) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
@@ -118,12 +137,12 @@ where
 }
 
 // ac3 is a specialized version of ac3_precolour
-pub fn ac_3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    ac_3_precolour(g0, g1, HashMap::new())
+    ac_3_precolour(g0, g1, Domains::new())
 }
 
 // Implementation of the arc-reduce operation from ac3.
@@ -132,7 +151,7 @@ fn arc_reduce<V0, V1>(
     x: V0,
     y: V0,
     dir: bool,
-    f: &mut HashMap<V0, Set<V1>>,
+    f: &mut Domains<V0, V1>,
     g1: &AdjacencyList<V1>,
 ) -> bool
 where
@@ -165,18 +184,23 @@ where
 }
 
 // TODO add Hashmap parameter
-pub fn dfs_ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, V1>>
+pub fn dfs_ac<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    ac: A,
+) -> Option<HashMap<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
+    A: ArcConsistency<V0, V1>,
 {
-    let f = match ac_3(g0, g1) {
+    let f = match ac3(g0, g1) {
         Some(v) => v,
         None => return None,
     };
     let vec = f.clone().into_iter().collect::<Vec<_>>();
 
-    if let Some(map) = dfs_ac3_rec(g0, g1, f, vec.into_iter()) {
+    if let Some(map) = dfs_ac_rec(g0, g1, f, vec.into_iter(), ac) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -187,16 +211,18 @@ where
     }
 }
 
-fn dfs_ac3_rec<V0, V1, I>(
+fn dfs_ac_rec<V0, V1, I, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    f: HashMap<V0, Set<V1>>,
+    f: Domains<V0, V1>,
     mut iter: I,
-) -> Option<HashMap<V0, Set<V1>>>
+    ac: A,
+) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
     I: Iterator<Item = (V0, Set<V1>)>,
+    A: ArcConsistency<V0, V1>,
 {
     let (u, l) = if let Some(v) = iter.next() {
         v
@@ -212,25 +238,25 @@ where
         *map.get_mut(&u).unwrap() = set;
 
         if ac_3_precolour(g0, g1, map.clone()).is_some() {
-            return dfs_ac3_rec(g0, g1, map, iter);
+            return dfs_ac_rec(g0, g1, map, iter, ac);
         }
     }
     return None;
 }
 
-pub fn sac_1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+pub fn sac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    sac_1_precolour(g0, g1, HashMap::new())
+    sac1_precolour(g0, g1, Domains::new())
 }
 
-pub fn sac_1_precolour<V0, V1>(
+pub fn sac1_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    mut f: HashMap<V0, Set<V1>>,
-) -> Option<HashMap<V0, Set<V1>>>
+    mut f: Domains<V0, V1>,
+) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
@@ -275,12 +301,12 @@ where
 pub fn singleton_search<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-) -> Option<HashMap<V0, Set<V1>>>
+) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    let mut map = match sac_1(&g0, &g1) {
+    let mut map = match sac1(&g0, &g1) {
         Some(v) => v,
         None => return None,
     };
@@ -294,7 +320,7 @@ where
 
             let f = map.clone();
             map.insert(v.clone(), set);
-            if let Some(e) = sac_1_precolour(g0, g1, f) {
+            if let Some(e) = sac1_precolour(g0, g1, f) {
                 map = e;
                 found = true;
             };
@@ -315,7 +341,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    let f = match ac_3(g0, g1) {
+    let f = match ac3(g0, g1) {
         Some(v) => v,
         None => return None,
     };
@@ -340,10 +366,10 @@ where
 fn dfs_sac_backtrack_rec<V0, V1, I>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    f: HashMap<V0, Set<V1>>,
+    f: Domains<V0, V1>,
     mut iter: I,
     backtracked: &mut bool,
-) -> Option<HashMap<V0, Set<V1>>>
+) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
@@ -364,7 +390,7 @@ where
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        if sac_1_precolour(g0, g1, map.clone()).is_some() {
+        if sac1_precolour(g0, g1, map.clone()).is_some() {
             return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
         }
         counter += 1;
@@ -463,7 +489,7 @@ fn sac_init<V0, V1>(
     }
 }
 
-pub fn sac_2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>, mut f: HashMap<V0, Set<V1>>)
+pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>, mut f: HashMap<V0, Set<V1>>)
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
