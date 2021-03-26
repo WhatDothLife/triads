@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     adjacency_list::AdjacencyList,
-    arc_consistency::{ac3, ac_3_precolour, dfs_ac, dfs_sac_backtrack},
+    arc_consistency::{ac3_precolour, dfs, dfs_sac_backtrack},
 };
 
 pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
@@ -60,7 +60,7 @@ where
         let mut product: AdjacencyList<Vec<T>> = list.power(arity);
         product.contract_if(predicate);
 
-        if let Some(map) = dfs_ac(&product, list, ac_3_precolour) {
+        if let Some(map) = dfs(&product, list, ac3_precolour) {
             return Some(Polymorphism { map });
         } else {
             None

@@ -1,10 +1,11 @@
-use crate::arc_consistency::{ac3, ac_3_precolour};
+use crate::arc_consistency::{ac3, ac3_precolour};
 use crate::configuration::Globals;
 use core::fmt::Debug;
 use rayon::prelude::*;
 use std::{
     cmp::min,
     collections::{HashMap, HashSet},
+    fmt,
     fs::{self, OpenOptions},
     hash::Hash,
     io::Write,
@@ -155,6 +156,19 @@ impl Triad {
             }
         }
         list
+    }
+}
+
+impl fmt::Display for Triad {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = String::new();
+        for (i, arm) in self.0.iter().enumerate() {
+            if i > 0 {
+                s.push(',');
+            }
+            s.push_str(arm);
+        }
+        write!(f, "{}", s)
     }
 }
 
@@ -357,7 +371,7 @@ fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     let mut pre_color = HashMap::<u32, Set<u32>>::new();
     pre_color.insert(0, set);
 
-    ac_3_precolour(g, g, pre_color)
+    ac3_precolour(g, g, pre_color)
 }
 
 // Cache to store pairs of RCAs that cannot form a core triad

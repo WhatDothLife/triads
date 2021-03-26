@@ -1,7 +1,12 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use triads::{arc_consistency::ac1, arc_consistency::ac3, triads::Triad};
+use triads::{
+    arc_consistency::ac1_precolour,
+    arc_consistency::{ac1, ac3, ac3_precolour, search_ac},
+    polymorphism::{commutative, siggers},
+    triads::Triad,
+};
 
 fn ac_triad_12(c: &mut Criterion) {
     let triad = Triad::from("0101", "1011", "111");
@@ -61,7 +66,7 @@ fn ac_triad_39(c: &mut Criterion) {
     let triad = Triad::from("0101110110111", "1011110100111", "111101101011");
     let list = triad.adjacency_list();
 
-    c.bench_function("ac_36", |b| {
+    c.bench_function("ac_39", |b| {
         b.iter(|| ac1(black_box(&list), black_box(&list)))
     });
 }
@@ -70,7 +75,7 @@ fn ac3_triad_39(c: &mut Criterion) {
     let triad = Triad::from("0101110110111", "1011110100111", "111101101011");
     let list = triad.adjacency_list();
 
-    c.bench_function("ac3_36", |b| {
+    c.bench_function("ac3_39", |b| {
         b.iter(|| ac3(black_box(&list), black_box(&list)))
     });
 }
@@ -166,11 +171,12 @@ fn commutative_ac3_576(c: &mut Criterion) {
 }
 
 fn siggers_ac_22(c: &mut Criterion) {
-    let triad = Triad::from("01011101", "10111101", "1111011");
+    let triad = Triad::from("10110000", "0101111", "100111");
     let list = triad.adjacency_list();
-    let product = list.power(4);
+    let mut product = list.power(4);
+    product.contract_if(&siggers);
 
-    let triad2 = Triad::from("01011101", "10111101", "1111011");
+    let triad2 = Triad::from("10110000", "0101111", "100111");
     let list2 = triad2.adjacency_list();
 
     let mut group = c.benchmark_group("size");
@@ -183,11 +189,12 @@ fn siggers_ac_22(c: &mut Criterion) {
     });
 }
 fn siggers_ac3_22(c: &mut Criterion) {
-    let triad = Triad::from("01011101", "10111101", "1111011");
+    let triad = Triad::from("10110000", "0101111", "100111");
     let list = triad.adjacency_list();
-    let product = list.power(4);
+    let mut product = list.power(4);
+    product.contract_if(&siggers);
 
-    let triad2 = Triad::from("01011101", "10111101", "1111011");
+    let triad2 = Triad::from("10110000", "0101111", "100111");
     let list2 = triad2.adjacency_list();
 
     let mut group = c.benchmark_group("size");
@@ -199,7 +206,6 @@ fn siggers_ac3_22(c: &mut Criterion) {
         b.iter(|| ac3(black_box(&product), black_box(&list2)))
     });
 }
-criterion_group!(siggers, siggers_ac_22, siggers_ac3_22);
 criterion_group!(
     ac,
     ac_triad_12,
@@ -208,24 +214,27 @@ criterion_group!(
     ac_triad_39,
     ac_triad_48
 );
+criterion_group!(
+    ac_3,
+    ac3_triad_12,
+    ac3_triad_24,
+    ac3_triad_36,
+    ac3_triad_39,
+    ac3_triad_48
+);
 // criterion_group!(
-//     ac_3,
-//     ac3_triad_12,
-//     ac3_triad_24,
-//     ac3_triad_36,
-//     ac3_triad_39,
-//     ac3_triad_48
+//     polymorphism_ac,
+//     commutative_ac_196,
+//     commutative_ac_361,
+//     commutative_ac_576
 // );
-criterion_group!(
-    polymorphism_ac,
-    commutative_ac_196,
-    commutative_ac_361,
-    commutative_ac_576
-);
-criterion_group!(
-    polymorphism_ac3,
-    commutative_ac3_196,
-    commutative_ac3_361,
-    commutative_ac3_576
-);
-criterion_main!(siggers);
+// criterion_group!(
+//     polymorphism_ac3,
+//     commutative_ac3_196,
+//     commutative_ac3_361,
+//     commutative_ac3_576
+// );
+// criterion_main!(ac, ac_3);
+
+criterion_group!(siggerslol, siggers_ac_22, siggers_ac3_22);
+criterion_main!(siggerslol);
