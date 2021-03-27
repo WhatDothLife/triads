@@ -659,9 +659,7 @@ where
         return Some(f);
     };
 
-    let mut counter = 0;
     for v in l.iter() {
-        println!("Iterating {}", &counter);
         let mut set = Set::new();
         set.insert(v.clone());
 
@@ -671,7 +669,6 @@ where
         if sac2_precolour(g0, g1, map.clone()).is_some() {
             return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
         }
-        counter += 1;
     }
     *backtracked = true;
     return None;
