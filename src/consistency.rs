@@ -770,7 +770,7 @@ where
     for (u, v) in lists.get(&(x.clone(), z.clone())).unwrap().iter() {
         if a == u {
             for (c, d) in lists.get(&(y.clone(), z.clone())).unwrap().iter() {
-                if c == v && d == b {
+                if c == b && d == v {
                     return true;
                 }
             }
