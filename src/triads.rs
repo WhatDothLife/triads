@@ -1,5 +1,5 @@
-use crate::arc_consistency::{ac3, ac3_precolour};
 use crate::configuration::Globals;
+use crate::consistency::{ac3, ac3_precolour};
 use core::fmt::Debug;
 use rayon::prelude::*;
 use std::{

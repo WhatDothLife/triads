@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     adjacency_list::AdjacencyList,
-    arc_consistency::{ac3_precolour, dfs, dfs_sac_backtrack},
+    consistency::{ac3_precolour, dfs, dfs_sac_backtrack},
 };
 
 pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {

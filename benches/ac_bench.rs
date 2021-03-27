@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use triads::{
-    arc_consistency::ac1_precolour,
-    arc_consistency::{ac1, ac3, ac3_precolour, search_ac},
+    consistency::ac1_precolour,
+    consistency::{ac1, ac3, ac3_precolour},
     polymorphism::{commutative, siggers},
     triads::Triad,
 };

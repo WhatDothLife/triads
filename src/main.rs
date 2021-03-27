@@ -5,9 +5,9 @@ use std::{
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use triads::{
-    adjacency_list::{from_dot, write_dot},
-    arc_consistency::{ac1_precolour, ac3, sac1, sac2},
+    adjacency_list::{from_dot, write_dot, AdjacencyList},
     configuration::{Configuration, Globals, Run},
+    consistency::{ac1_precolour, ac3, pc2, sac1, sac2},
     polymorphism::{commutative, PolymorphismRegistry},
     triads::{cores_length, cores_nodes, rooted_core_arms, Cache, Triad},
 };
@@ -145,21 +145,46 @@ use triads::{
 // }
 
 fn main() {
-    // let polymorphism = PolymorphismRegistry::get::<u32>("commutative_backtrack");
+    let triad = Triad::from("101000", "100", "111");
+    let polymorphism = PolymorphismRegistry::get::<u32>("commutative_backtrack");
 
-    // if polymorphism(&triad.adjacency_list()).is_none() {
-    //     println!("No polymorphism!");
-    // } else {
-    //     println!("Polymorphism despite backtrack!");
-    // }
+    if polymorphism(&triad.adjacency_list()).is_none() {
+        println!("No polymorphism or polymorphism without backtrack!");
+    } else {
+        println!("Polymorphism despite backtrack!");
+    }
 
-    let triad = Triad::from("10110000", "100111", "01011111");
-    let triad2 = Triad::from("10110000", "100111", "01011111");
+    // let triad = Triad::from("1", "1", "0");
+    // let triad2 = Triad::from("1", "1", "0");
     // let triad2 = Triad::from("101000", "100", "111");
 
-    let list = triad.adjacency_list();
-    let list2 = triad2.adjacency_list();
-    let map = sac2(&list, &list2);
-    println!("{:?}", map);
-    // from_mini();
+    // let list = triad.adjacency_list();
+    // let list2 = triad2.adjacency_list();
+    // let map = pc2(&list, &list2);
+    // println!("{:?}", map);
+
+    // let mut list = AdjacencyList::<u32>::new();
+    // list.insert_vertex(0);
+    // list.insert_vertex(1);
+    // list.insert_vertex(2);
+    // list.insert_vertex(3);
+    // list.insert_vertex(4);
+    // list.insert_edge(&0, &1);
+    // list.insert_edge(&1, &2);
+    // list.insert_edge(&2, &3);
+    // list.insert_edge(&3, &4);
+    // list.insert_edge(&4, &0);
+
+    // let mut list2 = AdjacencyList::<u32>::new();
+    // list2.insert_vertex(0);
+    // list2.insert_vertex(1);
+    // list2.insert_vertex(2);
+    // list2.insert_vertex(3);
+    // list2.insert_edge(&0, &1);
+    // list2.insert_edge(&1, &2);
+    // list2.insert_edge(&2, &3);
+    // list2.insert_edge(&3, &0);
+
+    // let res = pc2(&list, &list2);
+    // println!("{:?}", res);
 }

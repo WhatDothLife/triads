@@ -1,4 +1,5 @@
 use crate::adjacency_list::{AdjacencyList, Set};
+use std::fmt::Debug;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
 type Domains<V0, V1> = HashMap<V0, Set<V1>>;
@@ -140,7 +141,7 @@ where
         worklist.remove(&(x.clone(), y.clone(), dir));
 
         if arc_reduce(x.clone(), y, dir, &mut f, &g1) {
-            // domain of x changed, was the emtpy list derived?
+            // domain of x changed, was the empty list derived?
             if f.get(&x).unwrap().is_empty() {
                 return None;
             } else {
@@ -495,6 +496,7 @@ where
         if !f.contains_key(&v0) {
             f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
         }
+        m.insert(v0.clone(), HashSet::<V1>::new());
     }
 
     ac_init(
@@ -673,4 +675,106 @@ where
     }
     *backtracked = true;
     return None;
+}
+
+/// Implementation of the PC-3 algorithm by Mackworth 1977, specialized to work
+/// on graphs.
+///
+/// Returns false, if an empty domain is derived for some vertex v, true otherwise.
+pub fn pc2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> bool
+where
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
+{
+    let mut lists = HashMap::<(V0, V0), Set<(V1, V1)>>::new();
+    let mut worklist = HashSet::<(V0, V0, V0)>::new();
+
+    let mut set = Set::<(V1, V1)>::new();
+    for u in g1.vertex_iter() {
+        for v in g1.vertex_iter() {
+            set.insert((u.clone(), v.clone()));
+        }
+    }
+
+    for u in g0.vertex_iter() {
+        for v in g0.vertex_iter() {
+            if u == v {
+                let mut s = Set::<(V1, V1)>::new();
+                for u in g1.vertex_iter() {
+                    s.insert((u.clone(), u.clone()));
+                }
+                lists.insert((u.clone(), v.clone()), s);
+            } else if g0.contains_edge(u, v) {
+                let s = g1.edge_vec().iter().cloned().collect::<Set<_>>();
+                lists.insert((u.clone(), v.clone()), s);
+            } else {
+                lists.insert((u.clone(), v.clone()), set.clone());
+            }
+            for w in g0.vertex_iter() {
+                worklist.insert((u.clone(), w.clone(), v.clone()));
+            }
+        }
+    }
+    while !worklist.is_empty() {
+        let (x, y, z) = worklist.iter().cloned().next().unwrap();
+        worklist.remove(&(x.clone(), y.clone(), z.clone()));
+        if path_reduce(&x, &y, &z, &mut lists) {
+            // list of x,y changed, was the empty list derived?
+            if lists.get(&(x.clone(), y.clone())).unwrap().is_empty() {
+                return false;
+            } else {
+                for u in g0.vertex_iter() {
+                    if *u != x && *u != y {
+                        worklist.insert((u.clone(), x.clone(), y.clone()));
+                        worklist.insert((u.clone(), y.clone(), x.clone()));
+                    }
+                }
+            }
+        }
+    }
+    true
+}
+
+// Implementation of the path-reduce operation from pc2.
+// Returns true, if the domain of x,y was reduced, false otherwise.
+fn path_reduce<V0, V1>(x: &V0, y: &V0, z: &V0, lists: &mut HashMap<(V0, V0), Set<(V1, V1)>>) -> bool
+where
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
+{
+    for (a, b) in lists.get(&(x.clone(), y.clone())).unwrap().clone().iter() {
+        if !is_possible(x, y, z, a, b, lists) {
+            lists
+                .get_mut(&(x.clone(), y.clone()))
+                .unwrap()
+                .remove(&(a.clone(), b.clone()));
+            return true;
+        }
+    }
+    false
+}
+
+// Implemented as separate function so that we can return early
+fn is_possible<V0, V1>(
+    x: &V0,
+    y: &V0,
+    z: &V0,
+    a: &V1,
+    b: &V1,
+    lists: &mut HashMap<(V0, V0), Set<(V1, V1)>>,
+) -> bool
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    for (u, v) in lists.get(&(x.clone(), z.clone())).unwrap().iter() {
+        if a == u {
+            for (c, d) in lists.get(&(y.clone(), z.clone())).unwrap().iter() {
+                if c == v && d == b {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
