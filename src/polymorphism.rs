@@ -75,8 +75,6 @@ where
         let mut product: AdjacencyList<Vec<T>> = list.power(arity);
         product.contract_if(predicate);
 
-        println!("Built power graph!");
-
         if let Some(map) = dfs_sac_backtrack(&product, list) {
             return Some(Polymorphism { map });
         } else {
