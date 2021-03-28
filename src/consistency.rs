@@ -628,16 +628,12 @@ where
 
     if let Some(map) = dfs_sac_backtrack_rec(g0, g1, f, vec.into_iter(), &mut backtracked) {
         if backtracked {
-            Some(
-                map.iter()
-                    .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
-                    .collect(),
-            )
-        } else {
             return None;
+        } else {
+            return Some(HashMap::<_, _>::new());
         }
     } else {
-        return None;
+        return Some(HashMap::<_, _>::new());
     }
 }
 
