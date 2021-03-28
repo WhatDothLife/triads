@@ -131,7 +131,7 @@ impl Triad {
     /// Returns an adjacency list of the triad. The root is labeled with 0.
     pub fn adjacency_list(&self) -> AdjacencyList<u32> {
         let mut list = AdjacencyList::<u32>::new();
-        let mut node_id: u32 = 1;
+        let mut node_id = 1;
 
         list.insert_vertex(0);
 
@@ -191,6 +191,53 @@ impl FromStr for Triad {
 
         Ok(triad)
     }
+}
+
+impl Triad {
+    pub fn from_adjacency_list<T: Eq + Hash + Clone>(list: AdjacencyList<T>) -> Result<Triad, ()> {
+        let mut edges = list.edge_vec().into_iter().collect::<HashSet<_>>();
+        let mut triad_vec = Vec::<String>::new();
+
+        for u in list.vertex_iter() {
+            if list.degree(u) == 3 {
+                for (v, w) in list.edge_vec().iter() {
+                    if u == v {
+                        edges.remove(&(v.clone(), w.clone()));
+                        let s = arm_string(w.clone(), &mut edges, String::new());
+                        triad_vec.push(String::from("0") + &s);
+                    } else if u == w {
+                        edges.remove(&(v.clone(), w.clone()));
+                        let s = arm_string(v.clone(), &mut edges, String::new());
+                        triad_vec.push(String::from("1") + &s);
+                    }
+                }
+            }
+        }
+
+        triad_vec.sort_by(|a, b| b.len().cmp(&a.len()));
+
+        let triad = Triad::from(&triad_vec[0], &triad_vec[1], &triad_vec[2]);
+
+        Ok(triad)
+    }
+}
+
+fn arm_string<T>(u: T, vec: &mut HashSet<(T, T)>, mut s: String) -> String
+where
+    T: Eq + Hash + Clone,
+{
+    for (v, w) in vec.clone().iter() {
+        if u == *v {
+            s.push('0');
+            vec.remove(&(v.clone(), w.clone()));
+            return arm_string(w.clone(), vec, s);
+        } else if u == *w {
+            s.push('1');
+            vec.remove(&(v.clone(), w.clone()));
+            return arm_string(v.clone(), vec, s);
+        }
+    }
+    s
 }
 
 pub fn rooted_core_arms(max_length: u32) -> Vec<Vec<String>> {
@@ -314,6 +361,7 @@ pub fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> 
             .split_terminator('\n')
             .map(|x| x.to_owned())
             .collect();
+
         for triad in triads {
             triadlist.lock().unwrap().as_mut().unwrap().push(Triad(
                 triad.split(',').map(|x| x.to_owned()).collect::<Vec<_>>(),
@@ -321,11 +369,13 @@ pub fn cores_nodes(arm_list: &Vec<Vec<String>>, cache: &mut Cache, num: u32) -> 
         }
     } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
         let file_locked = Mutex::new(file);
+
         triplets_nodes(num).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                 for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                     for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
                         let mut count = 0;
+
                         for arm in [arm1, arm2, arm3].iter() {
                             if arm.chars().next().unwrap() == '1' {
                                 count += 1;
@@ -432,12 +482,14 @@ impl Cache {
         } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
             let file_locked = Mutex::new(file);
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
+
             pairs_nodes(num).par_iter().for_each(|[i, j]| {
                 for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                     for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                         let mut t = Triad::new();
                         t.add_arm(arm1);
                         t.add_arm(arm2);
+
                         // First condition excludes permutations of arms with the same length
                         if (i == j && a < b) || !t.is_rooted_core() {
                             pairs_locked
@@ -446,6 +498,7 @@ impl Cache {
                                 .as_mut()
                                 .unwrap()
                                 .push(((*i as u32, a), (*j as u32, b)));
+
                             if let Err(e) =
                                 writeln!(file_locked.lock().unwrap(), "{},{},{},{}", i, a, j, b)
                             {
@@ -495,12 +548,14 @@ impl Cache {
         } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
             let file_locked = Mutex::new(file);
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
+
             pairs_length(len).par_iter().for_each(|[i, j]| {
                 for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                     for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                         let mut t = Triad::new();
                         t.add_arm(arm1);
                         t.add_arm(arm2);
+
                         if !t.is_rooted_core() {
                             pairs_locked
                                 .lock()
@@ -508,6 +563,7 @@ impl Cache {
                                 .as_mut()
                                 .unwrap()
                                 .push(((*i, a), (*j, b)));
+
                             if let Err(e) =
                                 writeln!(file_locked.lock().unwrap(), "{},{},{},{}", i, a, j, b)
                             {
@@ -581,49 +637,69 @@ pub fn pairs_length(len: u32) -> Vec<[u32; 2]> {
     pairs
 }
 
-impl Triad {
-    pub fn from_adjacency_list<T: Eq + Hash + Clone>(list: AdjacencyList<T>) -> Result<Triad, ()> {
-        let mut edges = list.edge_vec().into_iter().collect::<HashSet<_>>();
-        let mut triad_vec = Vec::<String>::new();
-
-        for u in list.vertex_iter() {
-            if list.degree(u) == 3 {
-                for (v, w) in list.edge_vec().iter() {
-                    if u == v {
-                        edges.remove(&(v.clone(), w.clone()));
-                        let s = arm_string(w.clone(), &mut edges, String::new());
-                        triad_vec.push(String::from("0") + &s);
-                    } else if u == w {
-                        edges.remove(&(v.clone(), w.clone()));
-                        let s = arm_string(v.clone(), &mut edges, String::new());
-                        triad_vec.push(String::from("1") + &s);
-                    }
-                }
-            }
-        }
-
-        triad_vec.sort_by(|a, b| b.len().cmp(&a.len()));
-
-        let triad = Triad::from(&triad_vec[0], &triad_vec[1], &triad_vec[2]);
-
-        Ok(triad)
-    }
+pub enum Constraint {
+    Nodes,
+    Length,
 }
 
-fn arm_string<T>(u: T, vec: &mut HashSet<(T, T)>, mut s: String) -> String
-where
-    T: Eq + Hash + Clone,
-{
-    for (v, w) in vec.clone().iter() {
-        if u == *v {
-            s.push('0');
-            vec.remove(&(v.clone(), w.clone()));
-            return arm_string(w.clone(), vec, s);
-        } else if u == *w {
-            s.push('1');
-            vec.remove(&(v.clone(), w.clone()));
-            return arm_string(v.clone(), vec, s);
+impl Constraint {
+    pub fn triplets(&self, num: u32) -> Vec<[u32; 3]> {
+        match self {
+            // Triplets of arm lengths of triads with num nodes
+            Constraint::Nodes => {
+                let mut vec = Vec::<[u32; 3]>::new();
+                if num < 8 {
+                    return vec;
+                }
+
+                let max = ((num - 1) as f32 / 3.0).ceil() as u32;
+
+                for i in max..num - 2 {
+                    for j in 1..=min(num - i - 1, i) {
+                        let k = num - i - j - 1;
+                        if k <= j && k != 0 {
+                            vec.push([i, j, num - i - j - 1]);
+                        }
+                    }
+                }
+                vec
+            }
+            // Triplets of arm lengths of triads with maximum arm length num
+            Constraint::Length => {
+                let mut vec = Vec::<[u32; 3]>::new();
+
+                for i in 1..=num {
+                    for j in 1..=i {
+                        vec.push([num, i, j]);
+                    }
+                }
+                vec
+            }
         }
     }
-    s
+
+    pub fn pairs(&self, num: u32) -> Vec<[u32; 2]> {
+        match self {
+            // Pairs of arm lengths of triads with num nodes
+            Constraint::Nodes => {
+                let mut pairs = Vec::<[u32; 2]>::new();
+                if num < 4 {
+                    return pairs;
+                } else {
+                    for i in ((num as f32 / 2.0).ceil() - 1.0) as u32..num - 2 {
+                        pairs.push([i, num - i - 2]);
+                    }
+                }
+                pairs
+            }
+            // Pairs of arm lengths of triads with maximum arm length len
+            Constraint::Length => {
+                let mut pairs = Vec::<[u32; 2]>::new();
+                for i in 1..=num {
+                    pairs.push([num, i]);
+                }
+                pairs
+            }
+        }
+    }
 }
