@@ -1,145 +1,135 @@
+#![deny(missing_docs)]
+// #![deny(clippy::all)]
+// #[deny(missing_debug_implementations)]
+
+//! # Tripolys
+//!
+//! `tripolys` is a program for generating core triads and checking
+//! polymorphisms on them. A triad is an orientation of a tree which has a
+//! single vertex of degree 3 and otherwise only vertices of degree 2 and 1.
+
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs::OpenOptions,
+    io::{self, Write},
 };
 
+use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use triads::{
-    adjacency_list::{from_dot, write_dot, AdjacencyList},
-    configuration::{Configuration, Globals, Run},
-    consistency::{ac1_precolour, ac3, pc2, sac1, sac2},
-    polymorphism::{commutative, PolymorphismRegistry},
-    triads::{cores_length, cores_nodes, rooted_core_arms, Cache, Triad},
+    adjacency_list::write_dot,
+    configuration::{Configuration, Globals, Run, TripolysOptions},
+    triads::{cores_length_range, cores_nodes_range, Constraint},
 };
+
+fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
+    match config.run {
+        Run::Dot => {
+            if let Some(triad) = &options.triad {
+                write_dot(&triad.into());
+            }
+        }
+
+        Run::Core => {
+            if let Some(triad) = &options.triad {
+                if triad.is_core() {
+                    println!("{}", format!("✔ {} is a core!", triad).green());
+                } else {
+                    println!("{}", format!("✘ {} is not a core!", triad).red());
+                }
+            }
+        }
+
+        Run::Polymorphism => {
+            if let Some(polymorphism) = &options.polymorphism {
+                if let Some(ref triad) = options.triad {
+                    println!("> Checking polymorphism...");
+
+                    if let Some(map) = polymorphism(&triad.into()) {
+                        let msg = format!(
+                            "\t✔ {} does have a {} polymorphism!",
+                            triad,
+                            config.polymorphism.as_ref().unwrap()
+                        );
+                        println!("{}", msg.green());
+                        let path = format!(
+                            "{}/{}_{}",
+                            Globals::get().data,
+                            config.polymorphism.as_ref().unwrap(),
+                            triad.as_string()
+                        );
+                        if let Ok(mut file) =
+                            OpenOptions::new().append(true).create(true).open(path)
+                        {
+                            if let Err(e) = writeln!(file, "{:?}", map) {
+                                eprintln!("Couldn't write to file: {}", e);
+                            }
+                        }
+                    } else {
+                        let msg = format!(
+                            "\t✘ {} doesn't have a {} polymorphism!",
+                            triad,
+                            &config.polymorphism.unwrap()
+                        );
+                        println!("{}", msg.red());
+                    }
+                } else if let Some(constraint) = &options.constraint {
+                    let range = options.range.unwrap();
+                    let triads = match constraint {
+                        Constraint::Length => cores_length_range(range.0..range.1),
+                        Constraint::Nodes => cores_nodes_range(range.0..range.1),
+                    };
+
+                    for (i, vec) in triads.iter().enumerate() {
+                        println!("> Checking polymorphism for triads with {}...", i);
+                        vec.par_iter().for_each(|triad| {
+                            if polymorphism(&triad.into()).is_none() {
+                                let msg =
+                                    format!("\t✘ {} doesn't have a TODO polymorphism!", &triad);
+                                println!("{}", msg.red());
+
+                                let path = format!(
+                                    "{}/length/triads_{}_{}",
+                                    Globals::get().data,
+                                    config.polymorphism.as_ref().unwrap(),
+                                    i
+                                );
+
+                                if let Ok(mut file) =
+                                    OpenOptions::new().append(true).create(true).open(path)
+                                {
+                                    if let Err(e) = writeln!(file, "{}", &triad) {
+                                        eprintln!("Couldn't write to file: {}", e);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    // TODO return Error
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Print error message to stderr and terminate
+pub fn error(message: &str) -> ! {
+    eprintln!("{} {}", "Error:".red(), message);
+    std::process::exit(1);
+}
 
 fn main() {
     let config = Configuration::parse();
+    let options = TripolysOptions::new(&config);
 
-    match config.run {
-        Run::DOT => {
-            let triad = config.triad.parse::<Triad>().unwrap();
-            let mut product = triad.adjacency_list().power(2);
-            product.contract_if(&commutative);
-            write_dot(&product);
-            write_dot(&triad.adjacency_list());
-        }
-        Run::Triad => {
-            let triad = config.triad.parse::<Triad>().unwrap();
-            let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
+    let res = match options {
+        Ok(opts) => run(config, opts),
+        Err(ref e) => error(&e.to_string()),
+    };
 
-            println!("> Checking polymorphism...");
-
-            if let Some(map) = polymorphism(&triad.adjacency_list()) {
-                println!(
-                    "\x1b[32m\t✔ {:?} does have a {} polymorphism!\x1b[00m",
-                    triad, config.polymorphism
-                );
-                let path = String::from(format!(
-                    "{}/{}_{}",
-                    Globals::get().data,
-                    &config.polymorphism,
-                    triad.as_string()
-                ));
-                if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(path) {
-                    if let Err(e) = writeln!(file, "{:?}", map) {
-                        eprintln!("Couldn't write to file: {}", e);
-                    }
-                }
-            } else {
-                println!(
-                    "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
-                    triad, config.polymorphism
-                );
-            }
-        }
-
-        Run::Nodes => {
-            let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
-
-            println!("> Generating arms...");
-            // 1. range is exclusive
-            // 2. triad has a middle vertex
-            // save time and subtract by 4
-            let arm_list = rooted_core_arms(config.nodes.end - 4);
-            println!("\x1b[32m\t✔ Generated arms\x1b[00m");
-
-            // Cached pairs of RCAs that cannot form a core triad
-            let mut cache = Cache::new();
-
-            for i in config.nodes.clone() {
-                println!("> Generating core triads with {} nodes...", i);
-                let triads = cores_nodes(&arm_list, &mut cache, i);
-                println!("\x1b[32m\t✔ Generated core triads\x1b[00m");
-
-                println!("> Checking polymorphism...");
-
-                triads.par_iter().for_each(|triad| {
-                    if polymorphism(&triad.adjacency_list()).is_none() {
-                        println!(
-                            "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
-                            triad, config.polymorphism
-                        );
-
-                        let path = format!(
-                            "{}/nodes/triads_{}_{}",
-                            Globals::get().data,
-                            &config.polymorphism,
-                            i
-                        );
-
-                        if let Ok(mut file) =
-                            OpenOptions::new().append(true).create(true).open(path)
-                        {
-                            if let Err(e) = writeln!(file, "{}", &triad) {
-                                eprintln!("Couldn't write to file: {}", e);
-                            }
-                        }
-                    }
-                })
-            }
-        }
-
-        Run::Length => {
-            let polymorphism = PolymorphismRegistry::get::<u32>(&config.polymorphism);
-
-            println!("> Generating arms...");
-            let arm_list = rooted_core_arms(config.length.end - 1);
-            println!("\x1b[32m\t✔ Generated arms\x1b[00m");
-
-            // Cached pairs of RCAs that cannot form a core triad
-            let mut cache = Cache::new();
-
-            for i in config.length.clone() {
-                println!("> Generating core triads with armlength {}...", i);
-                let triads = cores_length(&arm_list, &mut cache, i);
-                println!("\x1b[32m\t✔ Generated core triads\x1b[00m");
-
-                println!("> Checking polymorphism...");
-
-                triads.par_iter().for_each(|triad| {
-                    if polymorphism(&triad.adjacency_list()).is_none() {
-                        println!(
-                            "\x1b[32m\t✘ {:?} doesn't have a {} polymorphism!\x1b[00m",
-                            &triad, config.polymorphism
-                        );
-
-                        let path = format!(
-                            "{}/length/triads_{}_{}",
-                            Globals::get().data,
-                            &config.polymorphism,
-                            i
-                        );
-
-                        if let Ok(mut file) =
-                            OpenOptions::new().append(true).create(true).open(path)
-                        {
-                            if let Err(e) = writeln!(file, "{}", &triad) {
-                                eprintln!("Couldn't write to file: {}", e);
-                            }
-                        }
-                    }
-                })
-            }
-        }
+    match res {
+        Ok(_) => {}
+        Err(e) => error(&e.to_string()),
     }
 }

@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 criterion = "0.3"
+colored = "2.0"
 clap = "2.33.0"
 rayon = "1.5"
 lazy_static = "1.4.0"

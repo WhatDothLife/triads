@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    error::Error,
     fmt::Debug,
     hash::Hash,
     iter::FromIterator,
@@ -157,6 +156,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 }
 
+// TODO This assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
 /// Parses a graph from dot format into an `AdjacencyList`.
 pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
     let mut list = AdjacencyList::<Vec<u32>>::new();
@@ -232,7 +232,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 }
 
-/// Returns the k-ary product graph of the AdjacencyList
+/// Returns the k-ary product graph of the AdjacencyList.
 impl<T: Eq + Hash + Clone + Sync + Send + Debug> AdjacencyList<T> {
     pub fn power(&self, k: u32) -> AdjacencyList<Vec<T>> {
         let mut list = AdjacencyList::new();
@@ -279,7 +279,7 @@ impl<T: Eq + Hash + Clone + Sync + Send + Debug> AdjacencyList<T> {
     }
 }
 
-/// Prints the AdjacencyList in dot format
+/// Prints the adjacencylist in dot format
 pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<VertexID>) {
     println!("digraph {}", '{');
     for (u, v) in graph.edge_vec() {
@@ -289,7 +289,7 @@ pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<Vert
 }
 
 impl<T: Eq + Hash + Clone + FromStr> AdjacencyList<T> {
-    pub fn from_edge_list(list: String) -> Result<AdjacencyList<T>, <T as FromStr>::Err> {
+    pub fn from_edge_list(list: &str) -> Result<AdjacencyList<T>, <T as FromStr>::Err> {
         let tree = list
             .split(&[',', '[', ']', ' '][..])
             .filter(|&x| !x.is_empty())
@@ -306,49 +306,4 @@ impl<T: Eq + Hash + Clone + FromStr> AdjacencyList<T> {
         }
         Ok(list)
     }
-}
-
-fn is_homomorphism<V0, V1>(
-    f: impl Fn(&V0) -> V1,
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> bool
-where
-    V0: Eq + Copy + Hash,
-    V1: Eq + Copy + Hash,
-{
-    for (u, v) in g0.edge_vec().iter() {
-        if !g1.contains_edge(&f(&u), &f(&v)) {
-            return false;
-        }
-    }
-    true
-}
-
-fn is_polymorphism<V0, V1>(
-    f: impl Fn(&V0, &V0) -> V1,
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> bool
-where
-    V0: Eq + Copy + Hash + std::fmt::Display,
-    V1: Eq + Copy + Hash + std::fmt::Display,
-{
-    for (u1, v1) in g0.edge_vec().iter() {
-        for (u2, v2) in g0.edge_vec().iter() {
-            if !g1.contains_edge(&f(&u1, &u2), &f(&v1, &v2)) {
-                println!(
-                    "(f({}, {}) = {}, f({}, {}) = {}) is not an edge!",
-                    &u1,
-                    &u2,
-                    f(&u1, &u2),
-                    &v1,
-                    &v2,
-                    f(&v1, &v2)
-                );
-                return false;
-            }
-        }
-    }
-    true
 }

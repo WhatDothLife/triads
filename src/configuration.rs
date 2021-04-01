@@ -1,22 +1,93 @@
-use std::ops::{Deref, Range};
+use std::ops::Deref;
 
 use clap::{App, Arg};
 use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
-pub enum Run {
-    DOT,
-    Triad,
-    Length,
-    Nodes,
+use crate::{
+    adjacency_list::AdjacencyList,
+    consistency::{AlgorithmRegistry, LocalConsistency},
+    errors::OptionsError,
+    polymorphism::{Polymorphism, PolymorphismFinder},
+    triads::{Constraint, Triad},
+};
+
+/// A set of options for tripolys
+pub struct TripolysOptions {
+    /// Constraint to use for triad generation (length or nodes)
+    pub constraint: Option<Constraint>,
+
+    /// Range in which to look for core triads
+    pub range: Option<(u32, u32)>,
+
+    /// Triad to operate on
+    pub triad: Option<Triad>,
+
+    /// Polymorphism to check
+    pub polymorphism: Option<Box<dyn Fn(&AdjacencyList<u32>) -> Option<Polymorphism<u32>> + Sync>>,
+
+    /// Algorithm to use
+    pub algorithm: Option<Box<dyn LocalConsistency<Vec<u32>, u32>>>,
 }
 
+impl TripolysOptions {
+    // TODO return Errors
+    pub fn new(config: &Configuration) -> Result<TripolysOptions, OptionsError> {
+        let constraint = if config.nodes.is_some() {
+            Some(Constraint::Nodes)
+        } else if config.length.is_some() {
+            Some(Constraint::Length)
+        } else {
+            None
+        };
+        let range = config
+            .nodes
+            .as_ref()
+            .or(config.length.as_ref())
+            .map(|s| parse_range(s));
+        let triad = config.triad.as_ref().map(|s| s.parse::<Triad>().unwrap());
+        let polymorphism = if let Some(m) = &config.polymorphism {
+            Some(PolymorphismFinder::get::<u32>(&m)?)
+        } else {
+            None
+        };
+        let algorithm = if let Some(a) = &config.algorithm {
+            Some(AlgorithmRegistry::get::<Vec<u32>, u32>(&a)?)
+        } else {
+            None
+        };
+
+        Ok(TripolysOptions {
+            constraint,
+            range,
+            triad,
+            polymorphism,
+            algorithm,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum Run {
+    /// Write triad to dot-format
+    Dot,
+
+    /// Check whether a triad is a core
+    Core,
+
+    /// Check whether a given polymorphism exists
+    Polymorphism,
+}
+
+#[derive(Debug)]
 pub struct Configuration {
-    pub verbose: bool,
-    pub length: Range<u32>,
-    pub nodes: Range<u32>,
-    pub polymorphism: String,
-    pub triad: String,
+    pub triad: Option<String>,
+    pub nodes: Option<String>,
+    pub length: Option<String>,
+    pub polymorphism: Option<String>,
+    pub algorithm: Option<String>,
+
+    /// How the program should run
     pub run: Run,
 }
 
@@ -26,12 +97,6 @@ impl Configuration {
             .version("1.0")
             .author("Michael W. <michael.wernthaler@posteo.de>")
             .about("A program for generating core triads and checking polymorphisms on them.")
-            .arg(
-                Arg::with_name("verbose")
-                    .short("v")
-                    .takes_value(false)
-                    .help("Be verbose"),
-            )
             .arg(
                 Arg::with_name("length")
                     .short("l")
@@ -48,7 +113,7 @@ impl Configuration {
                     .takes_value(true)
                     .conflicts_with_all(&["length", "triad"])
                     .value_name("NUM")
-                    .help("Maximum number of nodes of triads"),
+                    .help("Maximum number of nodes of triads, e.g. 10 or 5-9"),
             )
             .arg(
                 Arg::with_name("triad")
@@ -57,7 +122,14 @@ impl Configuration {
                     .conflicts_with_all(&["nodes", "length"])
                     .takes_value(true)
                     .value_name("TRIAD")
-                    .help("Check a polymorphism on the given triad, e.g. 111,011,01"),
+                    .help("Triad to operate on, e.g. 111,011,01"),
+            )
+            .arg(
+                Arg::with_name("core")
+                    .short("c")
+                    .long("core")
+                    .requires("triad")
+                    .help("Check whether the given triad is a core."),
             )
             .arg(
                 Arg::with_name("dot")
@@ -71,7 +143,16 @@ impl Configuration {
                     .short("p")
                     .long("polymorphism")
                     .value_name("NAME")
-                    .help("Polymorphism to check")
+                    .help("Polymorphism to check, e.g. commutative")
+                    .takes_value(true),
+            )
+            .arg(
+                Arg::with_name("algorithm")
+                    .short("a")
+                    .long("algorithm")
+                    .value_name("NAME")
+                    .default_value("ac3")
+                    .help("Algorithm to use")
                     .takes_value(true),
             )
             .arg(
@@ -80,7 +161,7 @@ impl Configuration {
                     .long("data")
                     .value_name("PATH")
                     .default_value("data")
-                    .help("Where to store data like cores or polymorphisms")
+                    .help("Where to store the data")
                     .takes_value(true), // .required(true)
             )
             .get_matches();
@@ -89,50 +170,32 @@ impl Configuration {
             panic!("You must provide exactly one of the following arguments: triad, length, nodes");
         }
 
-        let verbose = args
-            .value_of("verbose")
-            .unwrap_or("false")
-            .parse::<bool>()
-            .unwrap();
-        let nodes = parse_range(args.value_of("nodes").unwrap_or("0-0"));
-        let length = parse_range(args.value_of("length").unwrap_or("0-0"));
-        let triad = args.value_of("triad").unwrap_or("").to_owned();
-        let polymorphism = args.value_of("polymorphism").unwrap_or("").to_owned();
-        let data = args.value_of("data").unwrap_or("data").to_owned();
+        let triad = args.value_of("triad").map(|s| s.to_string());
+        let nodes = args.value_of("nodes").map(|s| s.to_string());
+        let length = args.value_of("nodes").map(|s| s.to_string());
+        let polymorphism = args.value_of("polymorphism").map(|s| s.to_string());
+        let algorithm = args.value_of("algorithm").map(|s| s.to_string());
 
         let run = if args.is_present("dot") {
-            Run::DOT
-        } else if args.is_present("triad") {
-            Run::Triad
-        } else if args.is_present("nodes") {
-            Run::Nodes
+            Run::Dot
+        } else if args.is_present("core") {
+            Run::Core
         } else {
-            Run::Length
+            Run::Polymorphism
         };
 
+        let data = args.value_of("data").unwrap_or("data").to_string();
         Globals::set(Globals { data });
 
         Configuration {
-            verbose,
-            length,
-            nodes,
-            polymorphism,
             triad,
+            nodes,
+            length,
+            polymorphism,
+            algorithm,
             run,
         }
     }
-}
-
-fn parse_range(s: &str) -> Range<u32> {
-    let length_vec = s.split('-').collect::<Vec<_>>();
-    let begin = length_vec.get(0).unwrap().parse::<u32>().unwrap();
-    let end = if let Some(s) = length_vec.get(1) {
-        s.parse::<u32>().unwrap()
-    } else {
-        begin
-    };
-    let length = begin..end + 1;
-    length
 }
 
 #[derive(Default)]
@@ -141,8 +204,8 @@ pub struct Globals {
 }
 
 impl Globals {
-    pub fn new(data: String) -> Self {
-        Globals { data }
+    pub fn new(data: &str) -> Self {
+        Globals { data: data.into() }
     }
 }
 
@@ -154,8 +217,6 @@ lazy_static! {
 
 impl Globals {
     pub fn get() -> impl Deref<Target = Globals> {
-        // Unfortunately because RwLockReadGuard::map does not exist, we have
-        // to create our own mapped version
         struct Guard(RwLockReadGuard<'static, Option<Globals>>);
         impl Deref for Guard {
             type Target = Globals;
@@ -169,4 +230,15 @@ impl Globals {
     pub fn set(value: Globals) {
         *GLOBALS.write().expect("RwLock is poisoned") = Some(value);
     }
+}
+
+fn parse_range(s: &str) -> (u32, u32) {
+    let length_vec = s.split('-').collect::<Vec<_>>();
+    let begin = length_vec.get(0).unwrap().parse::<u32>().unwrap();
+    let end = if let Some(s) = length_vec.get(1) {
+        s.parse::<u32>().unwrap()
+    } else {
+        begin
+    };
+    (begin, end + 1)
 }

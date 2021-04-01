@@ -1,4 +1,7 @@
-use crate::adjacency_list::{AdjacencyList, Set};
+use crate::{
+    adjacency_list::{AdjacencyList, Set},
+    errors::OptionsError,
+};
 use std::fmt::Debug;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
@@ -84,7 +87,7 @@ where
     Some(f)
 }
 
-// ac1 is a specialized version of ac1_precolour
+/// ac1 is a specialized version of ac1_precolour
 pub fn ac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -389,7 +392,6 @@ fn sac_init<V0, V1>(
     m: &mut HashMap<V0, HashSet<V1>>,
     counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
     s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_ac: &Vec<(V0, V1)>,
     s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
     list_sac: &mut Vec<(V0, V1)>,
 ) where
@@ -524,7 +526,6 @@ where
         &mut m,
         &mut counter,
         &s_ac,
-        &list_ac,
         &mut s_sac,
         &mut list_sac,
     );
@@ -626,7 +627,7 @@ where
     let vec = f.clone().into_iter().collect::<Vec<_>>();
     let mut backtracked = false;
 
-    if let Some(map) = dfs_sac_backtrack_rec(g0, g1, f, vec.into_iter(), &mut backtracked) {
+    if let Some(_) = dfs_sac_backtrack_rec(g0, g1, f, vec.into_iter(), &mut backtracked) {
         if backtracked {
             return None;
         } else {
@@ -770,4 +771,24 @@ where
         }
     }
     false
+}
+
+pub struct AlgorithmRegistry;
+
+impl AlgorithmRegistry {
+    pub fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
+    where
+        V0: Eq + Clone + Hash + 'static,
+        V1: Eq + Clone + Hash + 'static,
+    {
+        match algo {
+            "ac1" => Ok(Box::new(ac1_precolour)),
+            "ac3" => Ok(Box::new(ac3_precolour)),
+            "sac1" => Ok(Box::new(sac1_precolour)),
+            "sac2" => Ok(Box::new(sac2_precolour)),
+            // TODO
+            // "pc2" => Box::new(pc2),
+            &_ => Err(OptionsError::AlgorithmNotFound),
+        }
+    }
 }
