@@ -8,19 +8,25 @@
 //! polymorphisms on them. A triad is an orientation of a tree which has a
 //! single vertex of degree 3 and otherwise only vertices of degree 2 and 1.
 
+use colored::*;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     fs::OpenOptions,
     io::{self, Write},
 };
-use tripolys::polymorphism::find_polymorphism;
 
-use colored::*;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use tripolys::{
-    adjacency_list::write_dot,
-    configuration::{Configuration, Constraint, Globals, Run, TripolysOptions},
-    triads::{cores_length_range, cores_nodes_range, is_core},
-};
+mod tripolys;
+
+use crate::tripolys::adjacency_list::write_dot;
+use crate::tripolys::configuration::{Configuration, Constraint, Globals, Run, TripolysOptions};
+use crate::tripolys::polymorphism::find_polymorphism;
+use crate::tripolys::triads::{cores_length_range, cores_nodes_range, is_core};
+
+/// Print error message to stderr and terminate
+fn error(message: &str) -> ! {
+    eprintln!("{} {}", "Error:".red(), message);
+    std::process::exit(1);
+}
 
 fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
     match config.run {
@@ -119,12 +125,6 @@ fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
         }
     }
     Ok(())
-}
-
-/// Print error message to stderr and terminate
-fn error(message: &str) -> ! {
-    eprintln!("{} {}", "Error:".red(), message);
-    std::process::exit(1);
 }
 
 fn main() {

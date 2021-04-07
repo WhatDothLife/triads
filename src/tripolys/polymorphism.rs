@@ -5,10 +5,8 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{
-    adjacency_list::AdjacencyList,
-    consistency::{ac3_precolour, dfs, LocalConsistency},
-};
+use crate::tripolys::adjacency_list::AdjacencyList;
+use crate::tripolys::consistency::{ac3_precolour, dfs, LocalConsistency};
 
 pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     let r = x[1] == y[0] && x[1] == y[2];

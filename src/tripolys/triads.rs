@@ -1,5 +1,3 @@
-use crate::configuration::Globals;
-use crate::consistency::{ac3, ac3_precolour};
 use core::fmt::Debug;
 use rayon::prelude::*;
 use std::{
@@ -14,7 +12,9 @@ use std::{
     sync::Mutex,
 };
 
-use crate::adjacency_list::{AdjacencyList, Set};
+use crate::tripolys::adjacency_list::{AdjacencyList, Set};
+use crate::tripolys::consistency::{ac3, ac3_precolour};
+use crate::Globals;
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
 ///

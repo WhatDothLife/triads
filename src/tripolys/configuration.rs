@@ -9,12 +9,12 @@ use clap::{App, Arg};
 use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
-use crate::{
-    consistency::{ac1_precolour, ac3_precolour, sac1_precolour, sac2, LocalConsistency},
-    errors::OptionsError,
-    polymorphism::PolymorphismKind,
-    triads::Triad,
+use crate::tripolys::consistency::{
+    ac1_precolour, ac3_precolour, sac1_precolour, sac2_precolour, LocalConsistency,
 };
+use crate::tripolys::errors::OptionsError;
+use crate::tripolys::polymorphism::PolymorphismKind;
+use crate::tripolys::triads::Triad;
 
 /// A set of options for tripolys
 pub struct TripolysOptions {
@@ -296,7 +296,7 @@ impl AlgorithmRegistry {
             "ac1" => Ok(Box::new(ac1_precolour)),
             "ac3" => Ok(Box::new(ac3_precolour)),
             "sac1" => Ok(Box::new(sac1_precolour)),
-            "sac2" => Ok(Box::new(sac2)),
+            "sac2" => Ok(Box::new(sac2_precolour)),
             // "pc2" => Ok(Box::new(pc2)),
             &_ => Err(OptionsError::AlgorithmNotFound),
         }

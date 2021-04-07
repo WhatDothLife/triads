@@ -1,6 +1,7 @@
-use crate::adjacency_list::{AdjacencyList, Set};
 use std::fmt::Debug;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
+
+use crate::tripolys::adjacency_list::{AdjacencyList, Set};
 
 type Domains<V0, V1> = HashMap<V0, Set<V1>>;
 
@@ -84,7 +85,8 @@ where
     Some(f)
 }
 
-/// ac1 is a specialized version of ac1_precolour
+/// A modification of `ac1_precolour` that is initialized with a list of all nodes
+/// of g1 for each node in g0.
 pub fn ac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -154,7 +156,8 @@ where
     Some(f)
 }
 
-// ac3 is a specialized version of ac3_precolour
+/// A modification of `ac3_precolour` that is initialized with a list of all nodes
+/// of g1 for each node in g0.
 pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -247,6 +250,8 @@ where
     Some(e)
 }
 
+/// A modification of `sac1_precolour` that is initialized with a list of all nodes
+/// of g1 for each node in g0.
 pub fn sac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -439,7 +444,7 @@ fn sac_prune<V0, V1>(
     }
 }
 
-pub fn sac2<V0, V1>(
+pub fn sac2_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: HashMap<V0, Set<V1>>,
@@ -505,22 +510,23 @@ where
     Some(f)
 }
 
-pub fn sac2_simple<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> Option<HashMap<V0, Set<V1>>>
+/// A modification of `sac2_precolour` that is initialized with a list of all nodes
+/// of g1 for each node in g0.
+pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    sac2(g0, g1, HashMap::<V0, Set<V1>>::new())
+    sac2_precolour(g0, g1, HashMap::new())
 }
 
-// TODO add Hashmap parameter
+/// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
+/// locally consistent. The type of local consistency is determined by the
+/// algorithm `algo`.
 pub fn dfs<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    ac: &A,
+    algo: &A,
 ) -> Option<HashMap<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -533,7 +539,7 @@ where
     };
     let vec = f.clone().into_iter().collect::<Vec<_>>();
 
-    if let Some(map) = dfs_rec(g0, g1, f, vec.into_iter(), ac) {
+    if let Some(map) = dfs_rec(g0, g1, f, vec.into_iter(), algo) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -544,6 +550,7 @@ where
     }
 }
 
+/// Recursive helper function for `dfs`.
 fn dfs_rec<V0, V1, I, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
@@ -628,7 +635,7 @@ where
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        if sac2(g0, g1, map.clone()).is_some() {
+        if sac2_precolour(g0, g1, map.clone()).is_some() {
             return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
         }
     }
@@ -636,7 +643,7 @@ where
     return None;
 }
 
-/// Implementation of the PC-3 algorithm by Mackworth 1977, specialized to work
+/// Implementation of the PC-2 algorithm by Mackworth 1977, specialized to work
 /// on graphs.
 ///
 /// Returns false, if an empty domain is derived for some vertex v, true otherwise.
