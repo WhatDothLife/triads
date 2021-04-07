@@ -3,7 +3,7 @@ use std::time::Duration;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use triads::{
     consistency::ac1_precolour,
-    consistency::{ac1, ac3, ac3_precolour},
+    consistency::{ac1, ac3, ac3_precolour, pc2, sac2},
     polymorphism::{commutative, siggers},
     triads::Triad,
 };
@@ -206,22 +206,44 @@ fn siggers_ac3_22(c: &mut Criterion) {
         b.iter(|| ac3(black_box(&product), black_box(&list2)))
     });
 }
-criterion_group!(
-    ac,
-    ac_triad_12,
-    ac_triad_24,
-    ac_triad_36,
-    ac_triad_39,
-    ac_triad_48
-);
-criterion_group!(
-    ac_3,
-    ac3_triad_12,
-    ac3_triad_24,
-    ac3_triad_36,
-    ac3_triad_39,
-    ac3_triad_48
-);
+
+fn sac2_bench(c: &mut Criterion) {
+    let triad = Triad::from("10110000", "0101111", "100111");
+    let list = triad.adjacency_list();
+    let list2 = triad.adjacency_list();
+
+    c.bench_function("sac2", |b| {
+        b.iter(|| sac2(black_box(&list), black_box(&list2)))
+    });
+}
+
+fn pc2_bench(c: &mut Criterion) {
+    let triad = Triad::from("10110000", "0101111", "100111");
+    let list = triad.adjacency_list();
+    let list2 = triad.adjacency_list();
+
+    c.bench_function("pc2", |b| {
+        b.iter(|| pc2(black_box(&list), black_box(&list2)))
+    });
+}
+// criterion_group!(
+//     ac,
+//     ac_triad_12,
+//     ac_triad_24,
+//     ac_triad_36,
+//     ac_triad_39,
+//     ac_triad_48
+// );
+
+// criterion_group!(
+//     ac_3,
+//     ac3_triad_12,
+//     ac3_triad_24,
+//     ac3_triad_36,
+//     ac3_triad_39,
+//     ac3_triad_48
+// );
+
 // criterion_group!(
 //     polymorphism_ac,
 //     commutative_ac_196,
@@ -236,5 +258,5 @@ criterion_group!(
 // );
 // criterion_main!(ac, ac_3);
 
-criterion_group!(siggerslol, siggers_ac_22, siggers_ac3_22);
-criterion_main!(siggerslol);
+criterion_group!(sac, sac2_bench, pc2_bench);
+criterion_main!(sac);

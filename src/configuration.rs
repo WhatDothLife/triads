@@ -1,15 +1,19 @@
-use std::ops::Deref;
+use std::{
+    fmt::{self, Display},
+    ops::{Deref, RangeInclusive},
+};
+
+use std::hash::Hash;
 
 use clap::{App, Arg};
 use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
-    adjacency_list::AdjacencyList,
-    consistency::{AlgorithmRegistry, LocalConsistency},
+    consistency::{ac1_precolour, ac3_precolour, sac1_precolour, sac2, LocalConsistency},
     errors::OptionsError,
-    polymorphism::{Polymorphism, PolymorphismFinder},
-    triads::{Constraint, Triad},
+    polymorphism::PolymorphismKind,
+    triads::Triad,
 };
 
 /// A set of options for tripolys
@@ -18,13 +22,13 @@ pub struct TripolysOptions {
     pub constraint: Option<Constraint>,
 
     /// Range in which to look for core triads
-    pub range: Option<(u32, u32)>,
+    pub range: Option<RangeInclusive<u32>>,
 
     /// Triad to operate on
     pub triad: Option<Triad>,
 
     /// Polymorphism to check
-    pub polymorphism: Option<Box<dyn Fn(&AdjacencyList<u32>) -> Option<Polymorphism<u32>> + Sync>>,
+    pub polymorphism: Option<PolymorphismKind>,
 
     /// Algorithm to use
     pub algorithm: Option<Box<dyn LocalConsistency<Vec<u32>, u32>>>,
@@ -40,14 +44,22 @@ impl TripolysOptions {
         } else {
             None
         };
-        let range = config
-            .nodes
-            .as_ref()
-            .or(config.length.as_ref())
-            .map(|s| parse_range(s));
+        let range = if let Some(s) = config.nodes.as_ref().or(config.length.as_ref()) {
+            Some(parse_range(s)?)
+        } else {
+            None
+        };
         let triad = config.triad.as_ref().map(|s| s.parse::<Triad>().unwrap());
         let polymorphism = if let Some(m) = &config.polymorphism {
-            Some(PolymorphismFinder::get::<u32>(&m)?)
+            if m == "commutative" {
+                Some(PolymorphismKind::Commutative)
+            } else if m == "majority" {
+                Some(PolymorphismKind::Majority)
+            } else if m == "siggers" {
+                Some(PolymorphismKind::Siggers)
+            } else {
+                return Err(OptionsError::PolymorphismNotFound);
+            }
         } else {
             None
         };
@@ -112,7 +124,7 @@ impl Configuration {
                     .long("nodes")
                     .takes_value(true)
                     .conflicts_with_all(&["length", "triad"])
-                    .value_name("NUM")
+                    .value_name("NUM or RANGE")
                     .help("Maximum number of nodes of triads, e.g. 10 or 5-9"),
             )
             .arg(
@@ -129,14 +141,14 @@ impl Configuration {
                     .short("c")
                     .long("core")
                     .requires("triad")
-                    .help("Check whether the given triad is a core."),
+                    .help("Checks if triad is a core"),
             )
             .arg(
                 Arg::with_name("dot")
                     .short("D")
                     .long("dot")
                     .requires("triad")
-                    .help("Prints triad in dot format."),
+                    .help("Prints triad in dot format"),
             )
             .arg(
                 Arg::with_name("polymorphism")
@@ -152,7 +164,7 @@ impl Configuration {
                     .long("algorithm")
                     .value_name("NAME")
                     .default_value("ac3")
-                    .help("Algorithm to use")
+                    .help("Algorithm for polymorphism search")
                     .takes_value(true),
             )
             .arg(
@@ -172,7 +184,7 @@ impl Configuration {
 
         let triad = args.value_of("triad").map(|s| s.to_string());
         let nodes = args.value_of("nodes").map(|s| s.to_string());
-        let length = args.value_of("nodes").map(|s| s.to_string());
+        let length = args.value_of("length").map(|s| s.to_string());
         let polymorphism = args.value_of("polymorphism").map(|s| s.to_string());
         let algorithm = args.value_of("algorithm").map(|s| s.to_string());
 
@@ -194,6 +206,30 @@ impl Configuration {
             polymorphism,
             algorithm,
             run,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Constraint {
+    Nodes,
+    Length,
+}
+
+impl Display for Constraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Constraint::Nodes => write!(f, "nodes"),
+            Constraint::Length => write!(f, "length"),
+        }
+    }
+}
+
+impl Constraint {
+    pub fn identity(&self) -> &str {
+        match self {
+            Constraint::Length => "maximal armlength",
+            Constraint::Nodes => "node-number",
         }
     }
 }
@@ -232,13 +268,37 @@ impl Globals {
     }
 }
 
-fn parse_range(s: &str) -> (u32, u32) {
-    let length_vec = s.split('-').collect::<Vec<_>>();
-    let begin = length_vec.get(0).unwrap().parse::<u32>().unwrap();
-    let end = if let Some(s) = length_vec.get(1) {
+fn parse_range(s: &str) -> Result<RangeInclusive<u32>, OptionsError> {
+    let v = s.split('-').collect::<Vec<_>>();
+    let begin = v.get(0).unwrap().parse::<u32>().unwrap();
+    let end = if let Some(s) = v.get(1) {
         s.parse::<u32>().unwrap()
     } else {
         begin
     };
-    (begin, end + 1)
+    let r = begin..=end;
+    if r.is_empty() {
+        Err(OptionsError::EmptyRange)
+    } else {
+        Ok(r)
+    }
+}
+
+pub struct AlgorithmRegistry;
+
+impl AlgorithmRegistry {
+    pub fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
+    where
+        V0: Eq + Clone + Hash + 'static,
+        V1: Eq + Clone + Hash + 'static,
+    {
+        match algo {
+            "ac1" => Ok(Box::new(ac1_precolour)),
+            "ac3" => Ok(Box::new(ac3_precolour)),
+            "sac1" => Ok(Box::new(sac1_precolour)),
+            "sac2" => Ok(Box::new(sac2)),
+            // "pc2" => Ok(Box::new(pc2)),
+            &_ => Err(OptionsError::AlgorithmNotFound),
+        }
+    }
 }

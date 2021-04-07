@@ -6,10 +6,10 @@ use std::{
     cmp::min,
     collections::{HashMap, HashSet},
     convert::TryFrom,
-    fmt,
+    fmt::{self, Display},
     fs::{self, OpenOptions},
     hash::Hash,
-    io::Write,
+    io::{self, Write},
     str::FromStr,
     sync::Mutex,
 };
@@ -25,8 +25,8 @@ use crate::adjacency_list::{AdjacencyList, Set};
 /// Note that we don't restrict the triad to have exactly three arms.
 /// Instead there must be at most three arms, and every triad that has less
 /// can be considered a "partial triad".
-#[derive(Debug, Clone)]
-pub struct Triad(pub Vec<String>);
+#[derive(Debug, Clone, Hash)]
+pub struct Triad(Vec<String>);
 
 impl Triad {
     /// Creates a new empty `Triad`.
@@ -53,28 +53,6 @@ impl Triad {
         Triad(vec![a.to_string(), b.to_string(), c.to_string()])
     }
 
-    /// Returns the `Triad` as a string.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    /// ```
-    /// let t = Triad::from_strs("0", "1", "00");
-    /// asserteq!("0,1,00", t.as_string());
-    /// ```
-    pub fn as_string(&self) -> String {
-        let mut string = String::new();
-        let mut i = 0;
-        for arm in self.0.iter() {
-            if i > 0 {
-                string.push(',');
-            }
-            string.push_str(arm);
-            i += 1;
-        }
-        string
-    }
-
     /// Adds an arm to the triad.
     ///
     /// # Panics
@@ -87,47 +65,47 @@ impl Triad {
             self.0.push(arm.into());
         }
     }
+}
 
-    /// Returns `true` if this triad is a rooted core, and `false` otherwise.
-    ///
-    /// A rooted core is a triad for which id is the only automorphism, if you restrict
-    /// vertex 0 to be mapped to itself.
-    ///
-    /// # Examples
-    /// ```
-    /// let t = Triad::new();
-    /// t.add_arm("100");
-    /// asserteq!(false, t.is_core());
-    /// asserteq!(true, t.is_rooted_core());
-    /// ```
-    pub fn is_rooted_core(&self) -> bool {
-        let list = self.into();
-        let map = ac3_precolor_0(&list).unwrap();
-        for (_, v) in map {
-            if v.size() != 1 {
-                return false;
-            }
+/// Returns `true` if the triad is a rooted core, and `false` otherwise.
+///
+/// A rooted core is a triad for which id is the only automorphism, if you restrict
+/// vertex 0 to be mapped to itself.
+///
+/// # Examples
+/// ```
+/// let t = Triad::new();
+/// t.add_arm("100");
+/// asserteq!(false, t.is_core());
+/// asserteq!(true, t.is_rooted_core());
+/// ```
+pub fn is_rooted_core(t: &Triad) -> bool {
+    let list = t.into();
+    let map = ac3_precolour_0(&list).unwrap();
+    for (_, v) in map {
+        if v.size() != 1 {
+            return false;
         }
-        true
     }
+    true
+}
 
-    /// Returns `true` if this triad is a core, and `false` otherwise.
-    ///
-    /// # Examples
-    /// ```
-    /// let t = Triad::from_strs("0", "11", "1000");
-    /// asserteq!(true, t.is_core());
-    /// ```
-    pub fn is_core(&self) -> bool {
-        let list = self.into();
-        let map = ac3(&list, &list).unwrap();
-        for (_, v) in map {
-            if v.size() != 1 {
-                return false;
-            }
+/// Returns `true` if this triad is a core, and `false` otherwise.
+///
+/// # Examples
+/// ```
+/// let t = Triad::from_strs("0", "11", "1000");
+/// asserteq!(true, t.is_core());
+/// ```
+pub fn is_core(t: &Triad) -> bool {
+    let list = t.into();
+    let map = ac3(&list, &list).unwrap();
+    for (_, v) in map {
+        if v.size() != 1 {
+            return false;
         }
-        true
     }
+    true
 }
 
 impl fmt::Display for Triad {
@@ -193,7 +171,6 @@ impl From<&Triad> for AdjacencyList<u32> {
     }
 }
 
-/// Tries to build a triad from an adjacencylist.
 impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
     type Error = &'static str;
 
@@ -251,7 +228,7 @@ where
 
 /// Returns all arms with maximal length max_len that are rooted cores. For each
 /// index i the `Vec` at position i holds all rooted core arms of
-/// length i. Note that this means that e.g. the `Vec` at index 0 is empty.
+/// length i (`Vec` at index 0 is empty).
 fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
     let mut arm_list = vec![vec![String::new()]];
     let mut last = vec![String::new()];
@@ -279,7 +256,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
                     let mut triad = Triad::new();
                     triad.add_arm(arm);
 
-                    if triad.is_rooted_core() {
+                    if is_rooted_core(&triad) {
                         println!("Adding {:?} to armlist!", triad);
                         if let Err(e) = writeln!(file, "{}", arm) {
                             eprintln!("Couldn't write to file: {}", e);
@@ -300,7 +277,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
 
 /// A variant of precoloured AC, that restricts the domain of vertex 0 to 0. It
 /// is used to determine whether a partial triad is a rooted core.
-fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
+fn ac3_precolour_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     let mut set = Set::<u32>::new();
     set.insert(0);
 
@@ -310,7 +287,7 @@ fn ac3_precolor_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     ac3_precolour(g, g, pre_color)
 }
 
-// Cache to store pairs of RCAs that cannot form a core triad
+// A cache to speed up the generation of core triads
 struct Cache {
     pairs: HashSet<((u32, usize), (u32, usize))>,
     counter: u32,
@@ -335,39 +312,25 @@ impl Cache {
         false
     }
 
-    fn populate_to(&mut self, num: u32, arm_list: &Vec<Vec<String>>, constraint: &Constraint) {
+    fn populate_to(&mut self, num: u32, arm_list: &Vec<Vec<String>>, cons: &Constraint) {
         for i in self.counter..=num {
-            self.populate(i, arm_list, constraint);
+            self.populate(i, arm_list, cons);
         }
         self.counter = num;
     }
 
-    fn populate(&mut self, num: u32, arm_list: &Vec<Vec<String>>, constraint: &Constraint) {
-        let path = format!("{}/nodes/pairs_nodes{}", Globals::get().data, num);
+    fn populate(&mut self, num: u32, arm_list: &Vec<Vec<String>>, cons: &Constraint) {
+        let path = format!("{}/nodes/pairs_{}", Globals::get().data, num);
 
-        if let Ok(file) = fs::read(&path) {
-            let pairs: Vec<Vec<String>> = String::from_utf8_lossy(&file)
-                .split_terminator('\n')
-                .map(|x| {
-                    x.to_string()
-                        .split_terminator(',')
-                        .map(|y| y.into())
-                        .collect()
-                })
-                .collect();
-
-            for pair in pairs {
-                let len = pair[0].parse::<u32>().unwrap();
-                let a = pair[1].parse::<usize>().unwrap();
-                let i = pair[2].parse::<u32>().unwrap();
-                let b = pair[3].parse::<usize>().unwrap();
-                self.pairs.insert(((len, a), (i, b)));
+        if let Ok(pairs_vec) = FileParser::read_pairs(&path) {
+            for pair in pairs_vec.into_iter() {
+                self.pairs.insert(pair);
             }
         } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
             let file_locked = Mutex::new(file);
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
 
-            constraint.pairs(num).par_iter().for_each(|[i, j]| {
+            cons.pairs(num).par_iter().for_each(|[i, j]| {
                 for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                     for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                         let mut t = Triad::new();
@@ -375,7 +338,7 @@ impl Cache {
                         t.add_arm(arm2);
 
                         // First condition excludes permutations of arms with the same length
-                        if (i == j && a < b) || !t.is_rooted_core() {
+                        if (i == j && a < b) || !is_rooted_core(&t) {
                             pairs_locked
                                 .lock()
                                 .unwrap()
@@ -402,9 +365,8 @@ impl Cache {
     }
 }
 
-// TODO make me private
 #[derive(Debug)]
-pub enum Constraint {
+enum Constraint {
     Nodes,
     Length,
 }
@@ -470,18 +432,19 @@ impl Constraint {
         }
     }
 
-    // TODO make me private
-    pub fn path(&self) -> &str {
-        match self {
-            Constraint::Nodes => "/nodes",
-            Constraint::Length => "/length",
-        }
-    }
-
     fn max_armlength(&self, num: u32) -> u32 {
         match self {
-            Constraint::Nodes => num - 4,
+            Constraint::Nodes => num - 3,
             Constraint::Length => num,
+        }
+    }
+}
+
+impl Display for Constraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Constraint::Nodes => write!(f, "nodes"),
+            Constraint::Length => write!(f, "length"),
         }
     }
 }
@@ -512,53 +475,42 @@ where
     cores_range(range, &Constraint::Nodes)
 }
 
-/// Returns all core triads between start and end as a `Vec<Vec<Triad>`.
-/// Each index repesents a step in the given range.
-fn cores_range<R>(range: R, constraint: &Constraint) -> Vec<Vec<Triad>>
+fn cores_range<R>(range: R, cons: &Constraint) -> Vec<Vec<Triad>>
 where
     R: RangeIter<u32>,
 {
-    let arm_list = rooted_core_arms(constraint.max_armlength(range.end_bound()));
+    let arm_list = rooted_core_arms(cons.max_armlength(range.end_bound()));
     let mut cache = Cache::new();
     let mut vec = Vec::<_>::new();
     for i in range {
-        vec.push(_cores(&arm_list, &mut cache, i, constraint));
+        vec.push(_cores(&arm_list, &mut cache, i, cons));
     }
     vec
 }
 
-fn cores(num: u32, constraint: &Constraint) -> Vec<Triad> {
-    cores_range(num..=num, constraint)
-        .into_iter()
-        .flatten()
-        .collect()
+fn cores(num: u32, cons: &Constraint) -> Vec<Triad> {
+    cores_range(num..=num, cons).into_iter().flatten().collect()
 }
 
 fn _cores(
     arm_list: &Vec<Vec<String>>,
     cache: &mut Cache,
     num: u32,
-    constraint: &Constraint,
+    cons: &Constraint,
 ) -> Vec<Triad> {
-    cache.populate_to(num, &arm_list, &constraint);
+    cache.populate_to(num, &arm_list, &cons);
 
-    let path = format!("{}{}/cores_{}", Globals::get().data, constraint.path(), num);
     let triadlist = Mutex::new(Some(Vec::<Triad>::new()));
+    let path = format!("{}/{}/cores_{}", Globals::get().data, cons, num);
 
-    if let Ok(file) = fs::read(&path) {
-        let triads: Vec<String> = String::from_utf8_lossy(&file)
-            .split_terminator('\n')
-            .map(|x| x.into())
-            .collect();
-
-        for triad in triads {
-            let triad = Triad(triad.split(',').map(|x| x.to_string()).collect::<Vec<_>>());
+    if let Ok(triad_vec) = FileParser::read_triads(&path) {
+        for triad in triad_vec.into_iter() {
             triadlist.lock().unwrap().as_mut().unwrap().push(triad);
         }
     } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
         let file_locked = Mutex::new(file);
 
-        constraint.triplets(num).par_iter().for_each(|[i, j, k]| {
+        cons.triplets(num).par_iter().for_each(|[i, j, k]| {
             for (a, arm1) in arm_list[*i as usize].iter().enumerate() {
                 for (b, arm2) in arm_list[*j as usize].iter().enumerate() {
                     for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
@@ -576,7 +528,7 @@ fn _cores(
                             continue;
                         } else {
                             let triad = Triad::from(arm1, arm2, arm3);
-                            if triad.is_core() {
+                            if is_core(&triad) {
                                 triadlist.lock().unwrap().as_mut().unwrap().push(triad);
                                 if let Err(e) = writeln!(
                                     file_locked.lock().unwrap(),
@@ -622,5 +574,55 @@ impl RangeIter<u32> for std::ops::RangeInclusive<u32> {
 
     fn end_bound(&self) -> u32 {
         *self.end()
+    }
+}
+
+struct FileParser;
+
+impl FileParser {
+    fn read_triads(path: &str) -> Result<Vec<Triad>, io::Error> {
+        let file = fs::read(&path)?;
+        let triads: Vec<String> = String::from_utf8_lossy(&file)
+            .split_terminator('\n')
+            .map(|x| x.into())
+            .collect();
+
+        Ok(triads
+            .into_iter()
+            .map(|t| Triad(t.split(',').map(|x| x.into()).collect::<Vec<_>>()))
+            .collect::<Vec<_>>())
+    }
+
+    fn read_pairs(path: &str) -> Result<Vec<((u32, usize), (u32, usize))>, io::Error> {
+        let file = fs::read(&path)?;
+        let s: Vec<Vec<String>> = String::from_utf8_lossy(&file)
+            .split_terminator('\n')
+            .map(|x| {
+                x.to_string()
+                    .split_terminator(',')
+                    .map(|y| y.into())
+                    .collect()
+            })
+            .collect();
+
+        let mut pairs = Vec::<_>::new();
+        for pair in s {
+            let len = pair[0].parse::<u32>().unwrap();
+            let a = pair[1].parse::<usize>().unwrap();
+            let i = pair[2].parse::<u32>().unwrap();
+            let b = pair[3].parse::<usize>().unwrap();
+            pairs.push(((len, a), (i, b)));
+        }
+        Ok(pairs)
+    }
+
+    fn read_arms(len: u32) -> Result<Vec<String>, io::Error> {
+        let path = format!("{}/arms/arms{}", Globals::get().data, len);
+        let file = fs::read(&path)?;
+        let arms = String::from_utf8_lossy(&file)
+            .split_terminator('\n')
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        Ok(arms)
     }
 }

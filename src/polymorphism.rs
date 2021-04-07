@@ -2,12 +2,12 @@ use std::{
     collections::HashMap,
     fmt::{self, Debug},
     hash::Hash,
+    marker::PhantomData,
 };
 
 use crate::{
     adjacency_list::AdjacencyList,
-    consistency::{ac3_precolour, dfs, dfs_sac_backtrack, LocalConsistency},
-    errors::OptionsError,
+    consistency::{ac3_precolour, dfs, LocalConsistency},
 };
 
 pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
@@ -50,42 +50,6 @@ where
     map: HashMap<Vec<U>, U>,
 }
 
-impl<T> Polymorphism<T>
-where
-    T: Clone + Eq + Hash + Sync + Send + Debug,
-{
-    fn find<A: LocalConsistency<Vec<T>, T>, P: Fn(&Vec<T>, &Vec<T>) -> bool>(
-        list: &AdjacencyList<T>,
-        arity: u32,
-        predicate: &P,
-        algorithm: A,
-    ) -> Option<Polymorphism<T>> {
-        let mut product: AdjacencyList<Vec<T>> = list.power(arity);
-        product.contract_if(predicate);
-
-        if let Some(map) = dfs(&product, list, algorithm) {
-            return Some(Polymorphism { map });
-        } else {
-            None
-        }
-    }
-
-    fn find_sac_backtrack<P: Fn(&Vec<T>, &Vec<T>) -> bool>(
-        list: &AdjacencyList<T>,
-        arity: u32,
-        predicate: &P,
-    ) -> Option<Polymorphism<T>> {
-        let mut product: AdjacencyList<Vec<T>> = list.power(arity);
-        product.contract_if(predicate);
-
-        if let Some(map) = dfs_sac_backtrack(&product, list) {
-            return Some(Polymorphism { map });
-        } else {
-            None
-        }
-    }
-}
-
 impl<T> fmt::Display for Polymorphism<T>
 where
     T: Hash + Clone + Eq + Debug,
@@ -99,47 +63,67 @@ where
     }
 }
 
-fn binary_commutative<T: Eq + Hash + Clone + Send + Sync + Debug>(
-    list: &AdjacencyList<T>,
-) -> Option<Polymorphism<T>> {
-    Polymorphism::<T>::find(list, 2, &commutative, ac3_precolour)
+pub struct PolymorphismFinder<V>
+where
+    V: Clone + Eq + Hash,
+{
+    arity: u32,
+    predicate: fn(&Vec<V>, &Vec<V>) -> bool,
+    conservative: bool,
+    d: PhantomData<V>,
 }
 
-fn binary_commutative_backtrack<T: Eq + Hash + Clone + Send + Sync + Debug>(
-    list: &AdjacencyList<T>,
-) -> Option<Polymorphism<T>> {
-    Polymorphism::<T>::find_sac_backtrack(list, 2, &commutative)
-}
+impl<V> PolymorphismFinder<V>
+where
+    V: Clone + Eq + Hash + Send + Sync,
+{
+    pub fn new(arity: u32, predicate: fn(&Vec<V>, &Vec<V>) -> bool) -> PolymorphismFinder<V> {
+        PolymorphismFinder {
+            arity,
+            predicate,
+            conservative: false,
+            d: PhantomData {},
+        }
+    }
 
-fn ternary_majority<T: Eq + Hash + Clone + Send + Sync + Debug>(
-    list: &AdjacencyList<T>,
-) -> Option<Polymorphism<T>> {
-    Polymorphism::<T>::find(list, 3, &majority, ac3_precolour)
-}
+    fn conservative(mut self, c: bool) -> Self {
+        self.conservative = c;
+        self
+    }
 
-fn quaternary_siggers<T: Eq + Hash + Clone + Send + Sync + Debug>(
-    list: &AdjacencyList<T>,
-) -> Option<Polymorphism<T>> {
-    if let Some(m) = Polymorphism::<T>::find(list, 2, &commutative, ac3_precolour) {
-        Some(m)
-    } else {
-        Polymorphism::<T>::find(list, 4, &siggers, ac3_precolour)
+    pub fn find<A>(&self, list: &AdjacencyList<V>, algorithm: &A) -> Option<Polymorphism<V>>
+    where
+        A: LocalConsistency<Vec<V>, V>,
+    {
+        let mut product = list.power(self.arity);
+        product.contract_if(self.predicate);
+
+        if let Some(map) = dfs(&product, list, algorithm) {
+            return Some(Polymorphism { map });
+        } else {
+            None
+        }
     }
 }
 
-pub struct PolymorphismFinder;
+pub enum PolymorphismKind {
+    Commutative,
+    Majority,
+    Siggers,
+}
 
-impl PolymorphismFinder {
-    pub fn get<T: Clone + Eq + Hash + Sync + Send + Debug + 'static>(
-        polymorphism: &str,
-    ) -> Result<Box<dyn Fn(&AdjacencyList<T>) -> Option<Polymorphism<T>> + Sync>, OptionsError>
-    {
-        match polymorphism {
-            "commutative" => Ok(Box::new(binary_commutative)),
-            "commutative_backtrack" => Ok(Box::new(binary_commutative_backtrack)),
-            "majority" => Ok(Box::new(ternary_majority)),
-            "siggers" => Ok(Box::new(quaternary_siggers)),
-            &_ => Err(OptionsError::PolymorphismNotFound),
+pub fn find_polymorphism<V: Clone + Eq + Hash + Send + Sync>(
+    list: &AdjacencyList<V>,
+    kind: &PolymorphismKind,
+) -> Option<Polymorphism<V>> {
+    match kind {
+        PolymorphismKind::Commutative => {
+            PolymorphismFinder::new(2, commutative).find(list, &ac3_precolour)
         }
+        PolymorphismKind::Majority => {
+            PolymorphismFinder::new(3, majority).find(list, &ac3_precolour)
+        }
+        PolymorphismKind::Siggers => find_polymorphism(list, &PolymorphismKind::Commutative)
+            .or(PolymorphismFinder::new(4, siggers).find(list, &ac3_precolour)),
     }
 }

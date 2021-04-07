@@ -1,5 +1,5 @@
 [package]
-name = "triads"
+name = "tripolys"
 version = "0.1.0"
 authors = ["Michael Wernthaler <michael.wernthaler@posteo.de>"]
 edition = "2018"

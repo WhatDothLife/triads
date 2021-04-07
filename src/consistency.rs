@@ -1,7 +1,4 @@
-use crate::{
-    adjacency_list::{AdjacencyList, Set},
-    errors::OptionsError,
-};
+use crate::adjacency_list::{AdjacencyList, Set};
 use std::fmt::Debug;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
@@ -204,14 +201,6 @@ where
     changed
 }
 
-pub fn sac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-{
-    sac1_precolour(g0, g1, Domains::new())
-}
-
 pub fn sac1_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
@@ -258,39 +247,12 @@ where
     Some(e)
 }
 
-pub fn singleton_search<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> Option<Domains<V0, V1>>
+pub fn sac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    let mut map = match sac1(&g0, &g1) {
-        Some(v) => v,
-        None => return None,
-    };
-
-    for (v, l) in map.clone().iter() {
-        let mut found = false;
-
-        for u in l.iter() {
-            let mut set = Set::new();
-            set.insert(u.clone());
-
-            let f = map.clone();
-            map.insert(v.clone(), set);
-            if let Some(e) = sac2_precolour(g0, g1, f) {
-                map = e;
-                found = true;
-            };
-        }
-        if !found {
-            return None;
-        }
-    }
-
-    Some(map)
+    sac1_precolour(g0, g1, Domains::new())
 }
 
 fn ac_init<V0, V1>(
@@ -477,7 +439,7 @@ fn sac_prune<V0, V1>(
     }
 }
 
-pub fn sac2_precolour<V0, V1>(
+pub fn sac2<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: HashMap<V0, Set<V1>>,
@@ -543,19 +505,22 @@ where
     Some(f)
 }
 
-pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+pub fn sac2_simple<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+) -> Option<HashMap<V0, Set<V1>>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    sac2_precolour(g0, g1, HashMap::<V0, Set<V1>>::new())
+    sac2(g0, g1, HashMap::<V0, Set<V1>>::new())
 }
 
 // TODO add Hashmap parameter
 pub fn dfs<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    ac: A,
+    ac: &A,
 ) -> Option<HashMap<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -663,7 +628,7 @@ where
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        if sac2_precolour(g0, g1, map.clone()).is_some() {
+        if sac2(g0, g1, map.clone()).is_some() {
             return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
         }
     }
@@ -771,24 +736,4 @@ where
         }
     }
     false
-}
-
-pub struct AlgorithmRegistry;
-
-impl AlgorithmRegistry {
-    pub fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
-    where
-        V0: Eq + Clone + Hash + 'static,
-        V1: Eq + Clone + Hash + 'static,
-    {
-        match algo {
-            "ac1" => Ok(Box::new(ac1_precolour)),
-            "ac3" => Ok(Box::new(ac3_precolour)),
-            "sac1" => Ok(Box::new(sac1_precolour)),
-            "sac2" => Ok(Box::new(sac2_precolour)),
-            // TODO
-            // "pc2" => Box::new(pc2),
-            &_ => Err(OptionsError::AlgorithmNotFound),
-        }
-    }
 }

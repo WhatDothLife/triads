@@ -233,7 +233,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
 }
 
 /// Returns the k-ary product graph of the AdjacencyList.
-impl<T: Eq + Hash + Clone + Sync + Send + Debug> AdjacencyList<T> {
+impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
     pub fn power(&self, k: u32) -> AdjacencyList<Vec<T>> {
         let mut list = AdjacencyList::new();
 

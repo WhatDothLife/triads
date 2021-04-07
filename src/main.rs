@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
-// #![deny(clippy::all)]
-// #[deny(missing_debug_implementations)]
+#![deny(clippy::all)]
+#![deny(missing_debug_implementations)]
 
 //! # Tripolys
 //!
@@ -12,13 +12,14 @@ use std::{
     fs::OpenOptions,
     io::{self, Write},
 };
+use tripolys::polymorphism::find_polymorphism;
 
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use triads::{
+use tripolys::{
     adjacency_list::write_dot,
-    configuration::{Configuration, Globals, Run, TripolysOptions},
-    triads::{cores_length_range, cores_nodes_range, Constraint},
+    configuration::{Configuration, Constraint, Globals, Run, TripolysOptions},
+    triads::{cores_length_range, cores_nodes_range, is_core},
 };
 
 fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
@@ -31,7 +32,7 @@ fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
 
         Run::Core => {
             if let Some(triad) = &options.triad {
-                if triad.is_core() {
+                if is_core(&triad) {
                     println!("{}", format!("✔ {} is a core!", triad).green());
                 } else {
                     println!("{}", format!("✘ {} is not a core!", triad).red());
@@ -44,7 +45,7 @@ fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
                 if let Some(ref triad) = options.triad {
                     println!("> Checking polymorphism...");
 
-                    if let Some(map) = polymorphism(&triad.into()) {
+                    if let Some(map) = find_polymorphism(&triad.into(), polymorphism) {
                         let msg = format!(
                             "\t✔ {} does have a {} polymorphism!",
                             triad,
@@ -55,7 +56,7 @@ fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
                             "{}/{}_{}",
                             Globals::get().data,
                             config.polymorphism.as_ref().unwrap(),
-                            triad.as_string()
+                            triad
                         );
                         if let Ok(mut file) =
                             OpenOptions::new().append(true).create(true).open(path)
@@ -74,22 +75,29 @@ fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
                     }
                 } else if let Some(constraint) = &options.constraint {
                     let range = options.range.unwrap();
+                    println!("> Generating triads...");
                     let triads = match constraint {
-                        Constraint::Length => cores_length_range(range.0..range.1),
-                        Constraint::Nodes => cores_nodes_range(range.0..range.1),
+                        Constraint::Length => cores_length_range(range.clone()),
+                        Constraint::Nodes => cores_nodes_range(range.clone()),
                     };
+                    println!("{}", "\t✔ Generated triads!".green());
 
                     for (i, vec) in triads.iter().enumerate() {
-                        println!("> Checking polymorphism for triads with {}...", i);
+                        println!(
+                            "> Checking polymorphism for triads with {} {}...",
+                            constraint.identity(),
+                            range.start() + i as u32
+                        );
                         vec.par_iter().for_each(|triad| {
-                            if polymorphism(&triad.into()).is_none() {
+                            if find_polymorphism(&triad.into(), polymorphism).is_none() {
                                 let msg =
                                     format!("\t✘ {} doesn't have a TODO polymorphism!", &triad);
                                 println!("{}", msg.red());
 
                                 let path = format!(
-                                    "{}/length/triads_{}_{}",
+                                    "{}/{}/triads_{}_{}",
                                     Globals::get().data,
+                                    &constraint,
                                     config.polymorphism.as_ref().unwrap(),
                                     i
                                 );
@@ -114,7 +122,7 @@ fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
 }
 
 /// Print error message to stderr and terminate
-pub fn error(message: &str) -> ! {
+fn error(message: &str) -> ! {
     eprintln!("{} {}", "Error:".red(), message);
     std::process::exit(1);
 }
