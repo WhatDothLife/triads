@@ -1,4 +1,4 @@
-#+TITLE: Triads
+#+TITLE: Tripolys
 
 * About
 A program for generating core triads and checking polymorphisms.
@@ -13,7 +13,9 @@ cargo build
 * Usage
 Use ~--help~
 
-Example usage: ~./triads -p commutative -l 8~
+Example usage: ~./triads -p commutative -n 9~
 
 * License
 This program is released under the terms of the GNU General Public License v3.0.
+
+Visit this [[http://gnugpl.org/][page]] for license details.
