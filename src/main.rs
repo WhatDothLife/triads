@@ -1,12 +1,20 @@
-#![deny(missing_docs)]
-#![deny(clippy::all)]
-#![deny(missing_debug_implementations)]
-
 //! # Tripolys
 //!
 //! `tripolys` is a program for generating core triads and checking
-//! polymorphisms on them. A triad is an orientation of a tree which has a
-//! single vertex of degree 3 and otherwise only vertices of degree 2 and 1.
+//! polymorphisms on them.
+//!
+//! For a given digraph H the complexity of the constraint satisfaction problem
+//! for H, also called CSP(H), only depends on the set of polymorphisms of H.
+//! The program aims to study the structure of oriented trees with CSPs of
+//! varying complexity.
+//! To do this we focus on the case where H is a triad, e.g., an orientation of
+//! a tree which has a single vertex of degree 3 and otherwise only vertices of
+//! degree 2 and 1.
+
+#![deny(missing_docs)]
+// #![deny(missing_doc_code_examples)]
+#![deny(clippy::all)]
+#![deny(missing_debug_implementations)]
 
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -20,7 +28,7 @@ mod tripolys;
 use crate::tripolys::adjacency_list::write_dot;
 use crate::tripolys::configuration::{Configuration, Constraint, Globals, Run, TripolysOptions};
 use crate::tripolys::polymorphism::find_polymorphism;
-use crate::tripolys::triads::{cores_length_range, cores_nodes_range, is_core};
+use crate::tripolys::triad::{cores_length_range, cores_nodes_range, is_core};
 
 /// Print error message to stderr and terminate
 fn error(message: &str) -> ! {
@@ -28,6 +36,7 @@ fn error(message: &str) -> ! {
     std::process::exit(1);
 }
 
+/// Runs the program based on the given configuration and options
 fn run(config: Configuration, options: TripolysOptions) -> io::Result<()> {
     match config.run {
         Run::Dot => {

@@ -3,6 +3,8 @@ use std::{
     ops::{Deref, RangeInclusive},
 };
 
+use std::error::Error;
+
 use std::hash::Hash;
 
 use clap::{App, Arg};
@@ -12,9 +14,8 @@ use std::sync::{RwLock, RwLockReadGuard};
 use crate::tripolys::consistency::{
     ac1_precolour, ac3_precolour, sac1_precolour, sac2_precolour, LocalConsistency,
 };
-use crate::tripolys::errors::OptionsError;
 use crate::tripolys::polymorphism::PolymorphismKind;
-use crate::tripolys::triads::Triad;
+use crate::tripolys::triad::Triad;
 
 /// A set of options for tripolys
 pub struct TripolysOptions {
@@ -79,6 +80,30 @@ impl TripolysOptions {
     }
 }
 
+#[derive(Debug)]
+pub enum OptionsError {
+    EmptyRange,
+    PolymorphismNotFound,
+    AlgorithmNotFound,
+    FlawedTriad,
+}
+
+impl fmt::Display for OptionsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            OptionsError::EmptyRange => write!(f, "Range is empty"),
+            OptionsError::PolymorphismNotFound => {
+                write!(f, "No polymorphism registered with that name")
+            }
+            OptionsError::AlgorithmNotFound => {
+                write!(f, "No algorithm registered with that name")
+            }
+            OptionsError::FlawedTriad => write!(f, "Unable to parse triad from argument"),
+        }
+    }
+}
+
+impl Error for OptionsError {}
 #[derive(Debug)]
 pub enum Run {
     /// Write triad to dot-format

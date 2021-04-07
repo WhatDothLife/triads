@@ -275,7 +275,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
     arm_list
 }
 
-/// A variant of precoloured AC, that restricts the domain of vertex 0 to 0. It
+/// A modification of `ac3-precolour` that restricts the domain of vertex 0 to 0. It
 /// is used to determine whether a partial triad is a rooted core.
 fn ac3_precolour_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
     let mut set = Set::<u32>::new();

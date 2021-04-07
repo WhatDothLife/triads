@@ -210,7 +210,7 @@ where
     }
 }
 
-/// Contracts vertices of the AdjacencyList based on a predicate p
+/// Contracts each two vertices of the `AdjacencyList` if they satisfy a predicate `p`.
 impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
         let vs = self.vertex_iter().cloned().collect::<Vec<_>>();
@@ -232,7 +232,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 }
 
-/// Returns the k-ary product graph of the AdjacencyList.
+/// Returns the k-ary product graph of the `AdjacencyList`.
 impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
     pub fn power(&self, k: u32) -> AdjacencyList<Vec<T>> {
         let mut list = AdjacencyList::new();
@@ -279,7 +279,7 @@ impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
     }
 }
 
-/// Prints the adjacencylist in dot format
+/// Prints the graph in dot format
 pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<VertexID>) {
     println!("digraph {}", '{');
     for (u, v) in graph.edge_vec() {
