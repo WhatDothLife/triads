@@ -31,53 +31,17 @@ pub struct TripolysOptions {
     /// Polymorphism to check
     pub polymorphism: Option<PolymorphismKind>,
 
+    /// Whether the polymorphism should be conservative
+    pub conservative: bool,
+
+    /// Whether the polymorphism should be idempotent
+    pub idempotent: bool,
+
     /// Algorithm to use
     pub algorithm: Option<Box<dyn LocalConsistency<Vec<u32>, u32>>>,
-}
 
-impl TripolysOptions {
-    // TODO return Errors
-    pub fn new(config: &Configuration) -> Result<TripolysOptions, OptionsError> {
-        let constraint = if config.nodes.is_some() {
-            Some(Constraint::Nodes)
-        } else if config.length.is_some() {
-            Some(Constraint::Length)
-        } else {
-            None
-        };
-        let range = if let Some(s) = config.nodes.as_ref().or(config.length.as_ref()) {
-            Some(parse_range(s)?)
-        } else {
-            None
-        };
-        let triad = config.triad.as_ref().map(|s| s.parse::<Triad>().unwrap());
-        let polymorphism = if let Some(m) = &config.polymorphism {
-            if m == "commutative" {
-                Some(PolymorphismKind::Commutative)
-            } else if m == "majority" {
-                Some(PolymorphismKind::Majority)
-            } else if m == "siggers" {
-                Some(PolymorphismKind::Siggers)
-            } else {
-                return Err(OptionsError::PolymorphismNotFound);
-            }
-        } else {
-            None
-        };
-        let algorithm = if let Some(a) = &config.algorithm {
-            Some(AlgorithmRegistry::get::<Vec<u32>, u32>(&a)?)
-        } else {
-            None
-        };
-
-        Ok(TripolysOptions {
-            constraint,
-            range,
-            triad,
-            polymorphism,
-            algorithm,
-        })
-    }
+    /// How the program should run
+    pub run: Run,
 }
 
 #[derive(Debug)]
@@ -104,6 +68,7 @@ impl fmt::Display for OptionsError {
 }
 
 impl Error for OptionsError {}
+
 #[derive(Debug)]
 pub enum Run {
     /// Write triad to dot-format
@@ -116,24 +81,12 @@ pub enum Run {
     Polymorphism,
 }
 
-#[derive(Debug)]
-pub struct Configuration {
-    pub triad: Option<String>,
-    pub nodes: Option<String>,
-    pub length: Option<String>,
-    pub polymorphism: Option<String>,
-    pub algorithm: Option<String>,
-
-    /// How the program should run
-    pub run: Run,
-}
-
-impl Configuration {
-    pub fn parse() -> Configuration {
+impl TripolysOptions {
+    pub fn parse() -> Result<TripolysOptions, OptionsError> {
         let args = App::new("Triads")
             .version("1.0")
             .author("Michael W. <michael.wernthaler@posteo.de>")
-            .about("A program for generating core triads and checking polymorphisms on them.")
+            .about("A program for generating core triads and checking polymorphisms.")
             .arg(
                 Arg::with_name("length")
                     .short("l")
@@ -162,8 +115,22 @@ impl Configuration {
                     .help("Triad to operate on, e.g. 111,011,01"),
             )
             .arg(
-                Arg::with_name("core")
+                Arg::with_name("idempotent")
+                    .short("i")
+                    .long("idempotent")
+                    .requires("polymorphism")
+                    .help("Forces the polymorphism to be idempotent"),
+            )
+            .arg(
+                Arg::with_name("conservative")
                     .short("c")
+                    .long("conservative")
+                    .requires("polymorphism")
+                    .help("Forces the polymorphism to be conservative"),
+            )
+            .arg(
+                Arg::with_name("core")
+                    .short("C")
                     .long("core")
                     .requires("triad")
                     .help("Checks if triad is a core"),
@@ -207,11 +174,31 @@ impl Configuration {
             panic!("You must provide exactly one of the following arguments: triad, length, nodes");
         }
 
-        let triad = args.value_of("triad").map(|s| s.to_string());
         let nodes = args.value_of("nodes").map(|s| s.to_string());
         let length = args.value_of("length").map(|s| s.to_string());
-        let polymorphism = args.value_of("polymorphism").map(|s| s.to_string());
-        let algorithm = args.value_of("algorithm").map(|s| s.to_string());
+
+        let conservative = args.value_of("conservative").is_some();
+        let idempotent = args.value_of("idempotent").is_some();
+
+        let triad = if let Some(s) = args.value_of("triad") {
+            if let Ok(triad) = s.parse::<Triad>() {
+                Some(triad)
+            } else {
+                return Err(OptionsError::FlawedTriad);
+            }
+        } else {
+            None
+        };
+        let polymorphism = if let Some(p) = args.value_of("polymorphism") {
+            Some(PolymorphismRegistry::get(&p)?)
+        } else {
+            None
+        };
+        let algorithm = if let Some(a) = args.value_of("algorithm") {
+            Some(AlgorithmRegistry::get::<Vec<u32>, u32>(&a)?)
+        } else {
+            None
+        };
 
         let run = if args.is_present("dot") {
             Run::Dot
@@ -221,17 +208,32 @@ impl Configuration {
             Run::Polymorphism
         };
 
+        let constraint = if nodes.is_some() {
+            Some(Constraint::Nodes)
+        } else if length.is_some() {
+            Some(Constraint::Length)
+        } else {
+            None
+        };
+        let range = if let Some(s) = nodes.as_ref().or(length.as_ref()) {
+            Some(parse_range(s)?)
+        } else {
+            None
+        };
+
         let data = args.value_of("data").unwrap_or("data").to_string();
         Globals::set(Globals { data });
 
-        Configuration {
+        Ok(TripolysOptions {
+            constraint,
+            range,
             triad,
-            nodes,
-            length,
             polymorphism,
+            conservative,
+            idempotent,
             algorithm,
             run,
-        }
+        })
     }
 }
 
@@ -309,10 +311,10 @@ fn parse_range(s: &str) -> Result<RangeInclusive<u32>, OptionsError> {
     }
 }
 
-pub struct AlgorithmRegistry;
+struct AlgorithmRegistry;
 
 impl AlgorithmRegistry {
-    pub fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
+    fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
     where
         V0: Eq + Clone + Hash + 'static,
         V1: Eq + Clone + Hash + 'static,
@@ -324,6 +326,21 @@ impl AlgorithmRegistry {
             "sac2" => Ok(Box::new(sac2_precolour)),
             // "pc2" => Ok(Box::new(pc2)),
             &_ => Err(OptionsError::AlgorithmNotFound),
+        }
+    }
+}
+
+struct PolymorphismRegistry;
+
+impl PolymorphismRegistry {
+    fn get(polymorphism: &str) -> Result<PolymorphismKind, OptionsError> {
+        match polymorphism {
+            "commutative" => Ok(PolymorphismKind::Commutative),
+            "majority" => Ok(PolymorphismKind::Majority),
+            "siggers" => Ok(PolymorphismKind::Siggers),
+            &_ => {
+                return Err(OptionsError::PolymorphismNotFound);
+            }
         }
     }
 }

@@ -6,21 +6,23 @@ use std::{
 };
 
 use crate::tripolys::adjacency_list::AdjacencyList;
-use crate::tripolys::consistency::{ac3_precolour, dfs, LocalConsistency};
+use crate::tripolys::consistency::{ac3_precolour, LocalConsistency};
 
-pub fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
+use super::{adjacency_list::Set, consistency::dfs_precolour};
+
+fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     let r = x[1] == y[0] && x[1] == y[2];
     let a = x[0] == x[3] && x[0] == y[1];
     let e = x[2] == y[3];
     r && a && e
 }
 
-pub fn commutative<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
+fn commutative<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     assert!(x.len() == 2 && y.len() == 2, "Vertex without length 2");
     x[0] == y[1] && x[1] == y[0]
 }
 
-pub fn majority<T: Eq + Clone>(x: &Vec<T>, y: &Vec<T>) -> bool {
+fn majority<T: Eq + Clone>(x: &Vec<T>, y: &Vec<T>) -> bool {
     let v = major(x);
     let w = major(y);
     v.and(w.clone())
@@ -53,11 +55,11 @@ where
     T: Hash + Clone + Eq + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut str = String::new();
+        let mut s = String::new();
         for (k, v) in self.map.iter() {
-            str.push_str(format!("{:?} -> {:?}\n", k, v).as_str());
+            s.push_str(format!("{:?} -> {:?}\n", k, v).as_str());
         }
-        write!(f, "{}", str)
+        write!(f, "{}", s)
     }
 }
 
@@ -68,6 +70,7 @@ where
     arity: u32,
     predicate: fn(&Vec<V>, &Vec<V>) -> bool,
     conservative: bool,
+    idempotent: bool,
     d: PhantomData<V>,
 }
 
@@ -80,12 +83,18 @@ where
             arity,
             predicate,
             conservative: false,
+            idempotent: false,
             d: PhantomData {},
         }
     }
 
     fn conservative(mut self, c: bool) -> Self {
         self.conservative = c;
+        self
+    }
+
+    fn idempotent(mut self, i: bool) -> Self {
+        self.idempotent = i;
         self
     }
 
@@ -96,7 +105,25 @@ where
         let mut product = list.power(self.arity);
         product.contract_if(self.predicate);
 
-        if let Some(map) = dfs(&product, list, algorithm) {
+        let mut map = HashMap::<Vec<V>, Set<V>>::new();
+
+        if self.conservative {
+            for vec in product.vertex_iter() {
+                map.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
+            }
+        }
+
+        if self.idempotent {
+            for vec in product.vertex_iter() {
+                if is_all_same(&vec) {
+                    let mut s = Set::new();
+                    s.insert(vec[0].clone());
+                    map.insert(vec.clone(), s);
+                }
+            }
+        }
+
+        if let Some(map) = dfs_precolour(&product, list, map, algorithm) {
             return Some(Polymorphism { map });
         } else {
             None
@@ -104,12 +131,29 @@ where
     }
 }
 
+fn is_all_same<T: PartialEq>(arr: &[T]) -> bool {
+    arr.windows(2).all(|w| w[0] == w[1])
+}
+
+#[derive(Debug)]
 pub enum PolymorphismKind {
     Commutative,
     Majority,
     Siggers,
 }
 
+impl fmt::Display for PolymorphismKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PolymorphismKind::Commutative => write!(f, "{}", "commutative"),
+            PolymorphismKind::Majority => write!(f, "{}", "majority"),
+            PolymorphismKind::Siggers => write!(f, "{}", "siggers"),
+        }
+    }
+}
+
+/// Returns None, if `list` does not have a polymorphism of kind `kind`,
+/// otherwise a found polymorphism of `list` is returned.
 pub fn find_polymorphism<V: Clone + Eq + Hash + Send + Sync>(
     list: &AdjacencyList<V>,
     kind: &PolymorphismKind,
@@ -122,6 +166,6 @@ pub fn find_polymorphism<V: Clone + Eq + Hash + Send + Sync>(
             PolymorphismFinder::new(3, majority).find(list, &ac3_precolour)
         }
         PolymorphismKind::Siggers => find_polymorphism(list, &PolymorphismKind::Commutative)
-            .or(PolymorphismFinder::new(4, siggers).find(list, &ac3_precolour)),
+            .or_else(|| PolymorphismFinder::new(4, siggers).find(list, &ac3_precolour)),
     }
 }
