@@ -151,6 +151,16 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 }
 
+impl<V: Eq + Hash + Clone> AdjacencyList<Vec<V>> {
+    pub fn union(&self, l: &AdjacencyList<Vec<V>>) -> AdjacencyList<Vec<V>> {
+        let mut m1 = self.adjacency_list.clone();
+        let m2 = l.adjacency_list.clone();
+
+        m1.extend(m2.into_iter().map(|(k, v)| (k.clone(), v.clone())));
+        AdjacencyList { adjacency_list: m1 }
+    }
+}
+
 /// Contracts each two vertices of the `AdjacencyList` if they satisfy a predicate `p`.
 impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
