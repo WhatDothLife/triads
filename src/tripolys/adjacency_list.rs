@@ -1,10 +1,9 @@
+use crate::tripolys::consistency::ac3;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
     iter::FromIterator,
-    ops::Mul,
-    str::FromStr,
     sync::Mutex,
 };
 
@@ -129,10 +128,6 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         self.adjacency_list.get(u).unwrap().0.contains(v)
     }
 
-    // fn contract_edge(&mut self, u: &T, v: &T) {
-    //     self.contract_vertices(u, v);
-    // }
-
     pub fn vertex_iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.adjacency_list.keys()
     }
@@ -153,60 +148,6 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
             })
             .flatten()
             .collect::<Vec<_>>()
-    }
-}
-
-// TODO This assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
-/// Parses a graph from dot format into an `AdjacencyList`.
-pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
-    let mut list = AdjacencyList::<Vec<u32>>::new();
-    let mut split_vec = dot.split_terminator('\n').collect::<Vec<_>>();
-    split_vec.pop();
-    split_vec.remove(0);
-    let edges = split_vec
-        .iter()
-        .map(|x| x.split(&['[', ',', ' ', ']'][..]).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
-    for vec in edges {
-        let v1 = vec![
-            vec[1].parse::<u32>().unwrap(),
-            vec[3].parse::<u32>().unwrap(),
-        ];
-        let v2 = vec![
-            vec[7].parse::<u32>().unwrap(),
-            vec[9].parse::<u32>().unwrap(),
-        ];
-        list.insert_vertex(v1.clone());
-        list.insert_vertex(v2.clone());
-        list.insert_edge(&v1, &v2);
-    }
-
-    list
-}
-
-impl<T, U> Mul<&AdjacencyList<U>> for &AdjacencyList<T>
-where
-    T: Eq + Hash + Clone,
-    U: Eq + Hash + Clone,
-{
-    type Output = AdjacencyList<(T, U)>;
-
-    fn mul(self, rhs: &AdjacencyList<U>) -> AdjacencyList<(T, U)> {
-        let mut list = AdjacencyList::new();
-
-        for v1 in self.vertex_iter().cloned() {
-            for v2 in rhs.vertex_iter().cloned() {
-                list.insert_vertex((v1.clone(), v2));
-            }
-        }
-
-        for (x1, y1) in self.edge_vec().iter() {
-            for (x2, y2) in rhs.edge_vec().iter() {
-                list.insert_edge(&(x1.clone(), x2.clone()), &(y1.clone(), y2.clone()));
-            }
-        }
-
-        list
     }
 }
 
@@ -279,6 +220,54 @@ impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
     }
 }
 
+/// Returns `true` if `t` is a core, and `false` otherwise.
+///
+/// # Examples
+/// ```
+/// let t = Triad::from_strs("0", "11", "1000");
+/// asserteq!(true, t.is_core());
+/// ```
+pub fn is_core<'a, V, T>(t: &'a T) -> bool
+where
+    &'a T: Into<AdjacencyList<V>>,
+    V: Eq + Hash + Clone,
+{
+    for (_, v) in ac3(&t.into(), &t.into()).unwrap() {
+        if v.size() != 1 {
+            return false;
+        }
+    }
+    true
+}
+
+// TODO So far this assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
+/// Parses a graph from dot format into an `AdjacencyList`.
+pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
+    let mut list = AdjacencyList::<Vec<u32>>::new();
+    let mut split_vec = dot.split_terminator('\n').collect::<Vec<_>>();
+    split_vec.pop();
+    split_vec.remove(0);
+    let edges = split_vec
+        .iter()
+        .map(|x| x.split(&['[', ',', ' ', ']'][..]).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    for vec in edges {
+        let v1 = vec![
+            vec[1].parse::<u32>().unwrap(),
+            vec[3].parse::<u32>().unwrap(),
+        ];
+        let v2 = vec![
+            vec[7].parse::<u32>().unwrap(),
+            vec[9].parse::<u32>().unwrap(),
+        ];
+        list.insert_vertex(v1.clone());
+        list.insert_vertex(v2.clone());
+        list.insert_edge(&v1, &v2);
+    }
+
+    list
+}
+
 /// Prints the graph in dot format
 pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<VertexID>) {
     println!("digraph {}", '{');
@@ -286,24 +275,4 @@ pub fn write_dot<VertexID: Clone + Hash + Eq + Debug>(graph: &AdjacencyList<Vert
         println!("\"{:?}\" -> \"{:?}\";", u, v);
     }
     println!("{}", '}');
-}
-
-impl<T: Eq + Hash + Clone + FromStr> AdjacencyList<T> {
-    pub fn from_edge_list(list: &str) -> Result<AdjacencyList<T>, <T as FromStr>::Err> {
-        let tree = list
-            .split(&[',', '[', ']', ' '][..])
-            .filter(|&x| !x.is_empty())
-            .collect::<Vec<_>>();
-
-        let mut list = AdjacencyList::<T>::new();
-        for (i, _) in tree.iter().enumerate().step_by(2) {
-            let v1 = tree[i].parse::<T>()?;
-            let v2 = tree[i + 1].parse::<T>()?;
-
-            list.insert_vertex(v1.clone());
-            list.insert_vertex(v2.clone());
-            list.insert_edge(&v1, &v2);
-        }
-        Ok(list)
-    }
 }

@@ -12,8 +12,8 @@ use std::{
     sync::Mutex,
 };
 
-use crate::tripolys::adjacency_list::{AdjacencyList, Set};
-use crate::tripolys::consistency::{ac3, ac3_precolour};
+use crate::tripolys::adjacency_list::{is_core, AdjacencyList, Set};
+use crate::tripolys::consistency::ac3_precolour;
 use crate::Globals;
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
@@ -47,10 +47,10 @@ impl Triad {
     ///
     /// Basic usage:
     /// ```
-    /// let t = Triad::from_strs("0", "1", "00");
+    /// let t = Triad::from("0", "1", "00");
     /// ```
     pub fn from(a: &str, b: &str, c: &str) -> Triad {
-        Triad(vec![a.to_string(), b.to_string(), c.to_string()])
+        Triad(vec![a.into(), b.into(), c.into()])
     }
 
     /// Adds an arm to the triad.
@@ -59,11 +59,13 @@ impl Triad {
     ///
     /// Panics, if the triad already has 3 arms.
     pub fn add_arm(&mut self, arm: &str) {
-        if self.0.len() == 3 {
-            panic!("Triad already has 3 arms!");
-        } else {
-            self.0.push(arm.into());
+        for a in self.0.iter_mut() {
+            if a.is_empty() {
+                a.push_str(arm);
+                return;
+            }
         }
+        panic!("Triad already has 3 arms!");
     }
 }
 
@@ -80,26 +82,7 @@ impl Triad {
 /// asserteq!(true, t.is_rooted_core());
 /// ```
 pub fn is_rooted_core(t: &Triad) -> bool {
-    let list = t.into();
-    let map = ac3_precolour_0(&list).unwrap();
-    for (_, v) in map {
-        if v.size() != 1 {
-            return false;
-        }
-    }
-    true
-}
-
-/// Returns `true` if this triad is a core, and `false` otherwise.
-///
-/// # Examples
-/// ```
-/// let t = Triad::from_strs("0", "11", "1000");
-/// asserteq!(true, t.is_core());
-/// ```
-pub fn is_core(t: &Triad) -> bool {
-    let list = t.into();
-    let map = ac3(&list, &list).unwrap();
+    let map = ac3_precolour_0(&t.into()).unwrap();
     for (_, v) in map {
         if v.size() != 1 {
             return false;
@@ -121,12 +104,22 @@ impl fmt::Display for Triad {
     }
 }
 
-// TODO make me safe
 impl FromStr for Triad {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let arms: Vec<String> = s.split(',').map(|x| x.into()).collect();
+        if arms.len() > 3 {
+            return Err("Too many arms were given!");
+        }
+        for arm in arms.iter() {
+            if !arm.is_empty() {
+                let res: Vec<bool> = arm.chars().map(|c| c == '0' || c == '1').collect();
+                if res.contains(&false) {
+                    return Err("Only 0s and 1s allowed!");
+                }
+            }
+        }
 
         if let Some(arm1) = arms.get(0) {
             if let Some(arm2) = arms.get(1) {
@@ -135,6 +128,7 @@ impl FromStr for Triad {
                 }
             }
         }
+
         Err("Unable to parse triad from the given string slice!")
     }
 }
