@@ -338,6 +338,7 @@ impl PolymorphismRegistry {
             "commutative" => Ok(PolymorphismKind::Commutative),
             "majority" => Ok(PolymorphismKind::Majority),
             "siggers" => Ok(PolymorphismKind::Siggers),
+            "3/4wnu" => Ok(PolymorphismKind::WNU34),
             &_ => {
                 return Err(OptionsError::PolymorphismNotFound);
             }
