@@ -523,9 +523,10 @@ where
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
 /// locally consistent. The type of local consistency is determined by the
 /// algorithm `algo`.
-pub fn dfs<V0, V1, A>(
+pub fn dfs_precolour<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
+    f: HashMap<V0, Set<V1>>,
     algo: &A,
 ) -> Option<HashMap<V0, V1>>
 where
@@ -533,13 +534,13 @@ where
     V1: Eq + Clone + Hash,
     A: LocalConsistency<V0, V1>,
 {
-    let f = match ac3(g0, g1) {
+    let e = match ac3_precolour(g0, g1, f) {
         Some(v) => v,
         None => return None,
     };
-    let vec = f.clone().into_iter().collect::<Vec<_>>();
+    let vec = e.clone().into_iter().collect::<Vec<_>>();
 
-    if let Some(map) = dfs_rec(g0, g1, f, vec.into_iter(), algo) {
+    if let Some(map) = dfs_rec(g0, g1, e, vec.into_iter(), algo) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -582,6 +583,19 @@ where
         }
     }
     return None;
+}
+
+pub fn dfs<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    algo: &A,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    A: LocalConsistency<V0, V1>,
+{
+    dfs_precolour(g0, g1, Domains::new(), algo)
 }
 
 pub fn dfs_sac_backtrack<V0, V1>(
