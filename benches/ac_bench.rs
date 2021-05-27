@@ -1,12 +1,6 @@
 use std::time::Duration;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use triads::{
-    consistency::ac1_precolour,
-    consistency::{ac1, ac3, ac3_precolour, pc2, sac2},
-    polymorphism::{commutative, siggers},
-    triads::Triad,
-};
 
 fn ac_triad_12(c: &mut Criterion) {
     let triad = Triad::from("0101", "1011", "111");
