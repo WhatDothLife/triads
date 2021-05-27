@@ -69,26 +69,45 @@ impl Triad {
     }
 }
 
-/// Returns `true` if the triad is a rooted core, and `false` otherwise.
-///
-/// A rooted core is a triad for which id is the only automorphism, if you restrict
-/// vertex 0 to be mapped to itself.
-///
-/// # Examples
-/// ```
-/// let t = Triad::new();
-/// t.add_arm("100");
-/// asserteq!(false, t.is_core());
-/// asserteq!(true, t.is_rooted_core());
-/// ```
-pub fn is_rooted_core(t: &Triad) -> bool {
-    let map = ac3_precolour_0(&t.into()).unwrap();
-    for (_, v) in map {
-        if v.size() != 1 {
-            return false;
+    /// Returns `true` if the triad is a core, and `false` otherwise.  A graph G is
+    /// called a core if every endomorphism of G is an automorphism.
+    ///
+    /// # Examples
+    /// ```
+    /// let triad = Triad::from_strs("1000", "11", "0");
+    ///
+    /// asserteq!(true, triad.is_core());
+    /// ```
+    pub fn is_core(&self) -> bool {
+        for (_, v) in ac3(&self.into(), &self.into()).unwrap() {
+            if v.size() != 1 {
+                return false;
+            }
         }
+        true
     }
-    true
+
+    /// Returns `true` if the triad is a rooted core, and `false` otherwise.
+    ///
+    /// A rooted core is a triad for which id is the only automorphism, if you restrict
+    /// vertex 0 to be mapped to itself.
+    ///
+    /// # Examples
+    /// ```
+    /// let t = Triad::new();
+    /// t.add_arm("100");
+    /// asserteq!(false, t.is_core());
+    /// asserteq!(true, t.is_rooted_core());
+    /// ```
+    pub fn is_rooted_core(&self) -> bool {
+        let map = ac3_precolour_0(&self.into()).unwrap();
+        for (_, v) in map {
+            if v.size() != 1 {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl fmt::Display for Triad {
@@ -250,7 +269,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
                     let mut triad = Triad::new();
                     triad.add_arm(arm);
 
-                    if is_rooted_core(&triad) {
+                    if triad.is_rooted_core() {
                         println!("Adding {:?} to armlist!", triad);
                         if let Err(e) = writeln!(file, "{}", arm) {
                             eprintln!("Couldn't write to file: {}", e);
@@ -332,7 +351,7 @@ impl Cache {
                         t.add_arm(arm2);
 
                         // First condition excludes permutations of arms with the same length
-                        if (i == j && a < b) || !is_rooted_core(&t) {
+                        if (i == j && a < b) || !t.is_rooted_core() {
                             pairs_locked
                                 .lock()
                                 .unwrap()
@@ -521,8 +540,8 @@ fn _cores(
                         if cache.cached((*i, a), (*j, b), (*k, c)) {
                             continue;
                         } else {
-                            let triad = Triad::from(arm1, arm2, arm3);
-                            if is_core(&triad) {
+                            let triad = Triad::from_strs(arm1, arm2, arm3);
+                            if triad.is_core() {
                                 triadlist.lock().unwrap().as_mut().unwrap().push(triad);
                                 if let Err(e) = writeln!(
                                     file_locked.lock().unwrap(),

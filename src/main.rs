@@ -47,7 +47,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
 
         Run::Core => {
             if let Some(triad) = &options.triad {
-                if is_core(triad) {
+                if triad.is_core() {
                     println!("{}", format!("✔ {} is a core!", triad).green());
                 } else {
                     println!("{}", format!("✘ {} is not a core!", triad).red());
