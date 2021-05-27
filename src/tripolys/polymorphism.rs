@@ -23,6 +23,7 @@ pub fn wnu34<T: Eq + Clone + Hash>(x: &Vec<T>, y: &Vec<T>) -> bool {
             .and(w)
             .and_then(|z| Some(z == v.unwrap()))
             .unwrap_or(false)
+/// TODO f(x,...,x,y) = f(x,...,x,y,x) = ... = f(y,x,...,x)
     }
 }
 
@@ -52,6 +53,7 @@ fn wnu_elem<T: Eq + Clone + Hash>(x: &Vec<T>) -> Option<T> {
     None
 }
 
+/// f(r,a,r,e) = f(a,r,e,a)
 fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     let r = x[1] == y[0] && x[1] == y[2];
     let a = x[0] == x[3] && x[0] == y[1];
@@ -62,18 +64,21 @@ fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
 fn commutative<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     assert!(x.len() == 2 && y.len() == 2, "length must be equal to 2");
     x[0] == y[1] && x[1] == y[0]
+/// f(x,y) = f(y,x)
 }
 
 fn majority<T: Eq + Clone>(x: &Vec<T>, y: &Vec<T>) -> bool {
     assert!(x.len() == 3 && y.len() == 3, "length must be equal to 3");
     let v = major_elem(x);
     let w = major_elem(y);
+/// f(x,x,y) = f(x,y,x) = f(y,x,x) = x
     v.clone()
         .and(w)
         .and_then(|x| Some(x == v.unwrap()))
         .unwrap_or(false)
 }
 
+/// Returns an element if it occurs more often than all others, None otherwise.
 fn major_elem<T: Eq + Clone>(x: &Vec<T>) -> Option<T> {
     if x[0] == x[1] {
         return Some(x[0].clone());
@@ -94,6 +99,9 @@ fn only_elem<T: Eq + Clone>(arr: &[T]) -> Option<T> {
     }
 }
 
+/// A polymorphism implemented as a wrapper struct around a `HashMap<Vec<U>, U>`.
+///
+/// TODO
 #[derive(Debug)]
 pub struct Polymorphism<U>
 where
@@ -119,6 +127,26 @@ pub struct PolymorphismFinder<V>
 where
     V: Clone + Eq + Hash,
 {
+/// Used to create a representation of a polymorphism finder. Polymorphism
+/// settings are set using the "builder pattern" with the
+/// [`PolymorphismFinder::find`] method being the terminal method that starts a
+/// depth-first-search using a given local consistency algorithm as a heuristic.
+///
+/// **NOTE:** The mandatory "option" that one must set is `arity`. The "other"
+/// may also appear in any order (so long as the [`PolymorphismFinder::find`]
+/// method is the last method called).
+///
+/// # Example
+///
+/// ```no_run
+/// let graph: AdjacencyList<u32> = Triad::from("10,10,0").into();
+/// let res = PolymorphismFinder::new(Arity::Single(2))
+///     .predicate(commutative)
+///     .conservative(true)
+///     .find(graph, &ac3_precolour);
+/// ```
+/// [`PolymorphismFinder::find`]: ./struct.PolymorphismFinder.html#method.find
+#[allow(missing_debug_implementations)]
     arity: Arity,
     predicate: fn(&Vec<V>, &Vec<V>) -> bool,
     conservative: bool,
@@ -141,11 +169,13 @@ where
     }
 
     fn conservative(mut self, c: bool) -> Self {
+    /// Whether the polymorphism should be conservative
         self.conservative = c;
         self
     }
 
     fn idempotent(mut self, i: bool) -> Self {
+    /// Whether the polymorphism should be idempotent
         self.idempotent = i;
         self
     }
@@ -164,13 +194,28 @@ where
         let mut map = HashMap::<Vec<V>, Set<V>>::new();
 
         if self.conservative {
-            for vec in product.vertex_iter() {
+            for vec in product.vertices() {
                 map.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
             }
         }
 
         if self.idempotent {
-            for vec in product.vertex_iter() {
+            for vec in product.vertices() {
+                if is_all_same(&vec) {
+                    let mut s = Set::new();
+                    s.insert(vec[0].clone());
+                    map.insert(vec.clone(), s);
+                }
+            }
+        }
+
+        if let Some(map) = find_precolour(&product, list, map, algorithm, linear) {
+            return Some(Polymorphism { map });
+        } else {
+            None
+        }
+    }
+}
                 if is_all_same(&vec) {
                     let mut s = Set::new();
                     s.insert(vec[0].clone());
@@ -216,11 +261,11 @@ impl fmt::Display for PolymorphismKind {
 }
 
 /// Returns None, if `list` does not have a polymorphism of kind `kind`,
-/// otherwise a found polymorphism of `list` is returned.
 pub fn find_polymorphism<V: Clone + Eq + Hash + Send + Sync>(
     list: &AdjacencyList<V>,
     kind: &PolymorphismKind,
 ) -> Option<Polymorphism<V>> {
+/// otherwise a polymorphism of `list` is returned.
     match kind {
         PolymorphismKind::Commutative => {
             PolymorphismFinder::new(Arity::Single(2), commutative).find(list, &ac3_precolour)

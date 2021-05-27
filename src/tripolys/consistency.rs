@@ -32,22 +32,22 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    for v0 in g0.vertex_iter() {
+    for v0 in g0.vertices() {
         if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
+            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
         }
     }
 
-    let edges = g0.edge_vec();
+    let mut edges = g0.edges();
 
     let mut changed = true;
     while changed {
         changed = false;
-        for (u0, v0) in edges.iter() {
+        for (u0, v0) in &mut edges {
             for u1 in f.get(&u0).unwrap().clone().iter() {
                 let mut is_possible = false;
                 for v1 in f.get(&v0).unwrap().iter() {
-                    if g1.contains_edge(u1, v1) {
+                    if g1.has_edge(u1, v1) {
                         is_possible = true;
                         break;
                     }
@@ -65,7 +65,7 @@ where
             for v1 in f.get(&v0).unwrap().clone().iter() {
                 let mut is_possible = false;
                 for u1 in f.get(&u0).unwrap().iter() {
-                    if g1.contains_edge(u1, v1) {
+                    if g1.has_edge(u1, v1) {
                         is_possible = true;
                         break;
                     }
@@ -112,16 +112,16 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    for v0 in g0.vertex_iter() {
+    for v0 in g0.vertices() {
         if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
+            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
         }
     }
 
-    let edges = g0.edge_vec();
+    let edges = g0.edges();
     let mut worklist = HashSet::<(V0, V0, bool)>::new();
 
-    for (x, y) in edges.iter().cloned() {
+    for (x, y) in edges {
         worklist.insert((x.clone(), y.clone(), false));
         worklist.insert((y, x, true));
     }
@@ -130,7 +130,7 @@ where
     // they're added to worklist, if the domain of the respective vertex changed
     let mut items = HashMap::new();
 
-    for v in g0.vertex_iter() {
+    for v in g0.vertices() {
         items.insert(v.clone(), Vec::<(V0, V0, bool)>::new());
     }
 
@@ -184,12 +184,12 @@ where
         let mut is_possible = false;
         for vy in f.get(&y).unwrap().iter() {
             if dir {
-                if g1.contains_edge(vy, vx) {
+                if g1.has_edge(vy, vx) {
                     is_possible = true;
                     break;
                 }
             } else {
-                if g1.contains_edge(vx, vy) {
+                if g1.has_edge(vx, vy) {
                     is_possible = true;
                     break;
                 }
@@ -213,9 +213,9 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    for v0 in g0.vertex_iter() {
+    for v0 in g0.vertices() {
         if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
+            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
         }
     }
 
@@ -272,13 +272,13 @@ fn ac_init<V0, V1>(
     V0: Eq + Hash + Clone,
     V1: Eq + Hash + Clone,
 {
-    let edges = g0.edge_vec();
+    let edges = g0.edges();
 
-    for (u0, v0) in edges.iter() {
+    for (u0, v0) in edges {
         for u1 in f.get(&u0).unwrap().clone().iter() {
             let mut total = 0;
             for v1 in f.get(&v0).unwrap().iter() {
-                if g1.contains_edge(u1, v1) {
+                if g1.has_edge(u1, v1) {
                     total += 1;
                     if let Some(entry) = s_ac.get_mut(&(v0.clone(), v1.clone())) {
                         entry.push((u0.clone(), u1.clone()));
@@ -365,7 +365,7 @@ fn sac_init<V0, V1>(
     V0: Eq + Hash + Clone,
     V1: Eq + Hash + Clone,
 {
-    for i in g0.vertex_iter() {
+    for i in g0.vertices() {
         for a in f.get(&i).unwrap().clone().iter() {
             let mut set = Set::new();
             set.insert(a.clone());
@@ -461,13 +461,14 @@ where
     let mut s_sac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
     let mut list_sac = Vec::<(V0, V1)>::new();
 
-    for v0 in g0.vertex_iter() {
+    for v0 in g0.vertices() {
         if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertex_iter().cloned().collect::<Set<_>>());
+            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
         }
         m.insert(v0.clone(), HashSet::<V1>::new());
     }
 
+    println!("ac_init");
     ac_init(
         g0,
         g1,
@@ -477,6 +478,7 @@ where
         &mut s_ac,
         &mut list_ac,
     );
+    println!("ac_prune");
     ac_prune(
         &mut f,
         &mut m,
@@ -486,6 +488,7 @@ where
         &mut s_sac,
         &mut list_sac,
     );
+    println!("sac_init");
     sac_init(
         g0,
         g1,
@@ -496,6 +499,7 @@ where
         &mut s_sac,
         &mut list_sac,
     );
+    println!("sac_prune");
     sac_prune(
         g0,
         g1,
@@ -520,10 +524,7 @@ where
     sac2_precolour(g0, g1, HashMap::new())
 }
 
-/// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
-/// locally consistent. The type of local consistency is determined by the
-/// algorithm `algo`.
-pub fn dfs_precolour<V0, V1, A>(
+pub fn linear_search_precolour<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     f: HashMap<V0, Set<V1>>,
@@ -534,13 +535,73 @@ where
     V1: Eq + Clone + Hash,
     A: LocalConsistency<V0, V1>,
 {
-    let e = match ac3_precolour(g0, g1, f) {
-        Some(v) => v,
-        None => return None,
+    find_precolour(g0, g1, Domains::new(), algo, true)
+}
+
+pub fn linear_search<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    algo: &A,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    A: LocalConsistency<V0, V1>,
+{
+    linear_search_precolour(g0, g1, Domains::new(), algo)
+}
+
+pub fn df_search_precolour<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: HashMap<V0, Set<V1>>,
+    algo: &A,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    A: LocalConsistency<V0, V1>,
+{
+    find_precolour(g0, g1, Domains::new(), algo, false)
+}
+
+pub fn df_search<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    algo: &A,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    A: LocalConsistency<V0, V1>,
+{
+    df_search_precolour(g0, g1, Domains::new(), algo)
+}
+
+/// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
+/// locally consistent. The type of local consistency is determined by the
+/// algorithm `algo`.
+pub fn find_precolour<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: HashMap<V0, Set<V1>>,
+    ac: &A,
+    linear: bool,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    A: LocalConsistency<V0, V1>,
+{
+    let e = if let Some(v) = ac(g0, g1, f) {
+        v
+    } else {
+        return None;
     };
+
     let vec = e.clone().into_iter().collect::<Vec<_>>();
 
-    if let Some(map) = dfs_rec(g0, g1, e, vec.into_iter(), algo) {
+    if let Some(map) = search_rec(g0, g1, e, vec.into_iter(), ac, linear) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -552,12 +613,13 @@ where
 }
 
 /// Recursive helper function for `dfs`.
-fn dfs_rec<V0, V1, I, A>(
+fn search_rec<V0, V1, I, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     f: Domains<V0, V1>,
     mut iter: I,
     ac: A,
+    linear: bool,
 ) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -578,82 +640,15 @@ where
         let mut map = f.clone();
         *map.get_mut(&u).unwrap() = set;
 
-        if ac3_precolour(g0, g1, map.clone()).is_some() {
-            return dfs_rec(g0, g1, map, iter, ac);
-        }
-    }
-    return None;
-}
-
-pub fn dfs<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    algo: &A,
-) -> Option<HashMap<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    A: LocalConsistency<V0, V1>,
-{
-    dfs_precolour(g0, g1, Domains::new(), algo)
-}
-
-pub fn dfs_sac_backtrack<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> Option<HashMap<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-{
-    let f = match ac3(g0, g1) {
-        Some(v) => v,
-        None => return None,
-    };
-    let vec = f.clone().into_iter().collect::<Vec<_>>();
-    let mut backtracked = false;
-
-    if let Some(_) = dfs_sac_backtrack_rec(g0, g1, f, vec.into_iter(), &mut backtracked) {
-        if backtracked {
-            return None;
+        if let Some(_) = ac(g0, g1, map.clone()) {
+            return search_rec(g0, g1, map, iter, ac, linear);
         } else {
-            return Some(HashMap::<_, _>::new());
-        }
-    } else {
-        return Some(HashMap::<_, _>::new());
-    }
-}
-
-fn dfs_sac_backtrack_rec<V0, V1, I>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: Domains<V0, V1>,
-    mut iter: I,
-    backtracked: &mut bool,
-) -> Option<Domains<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    I: Iterator<Item = (V0, Set<V1>)>,
-{
-    let (u, l) = if let Some(v) = iter.next() {
-        v
-    } else {
-        return Some(f);
-    };
-
-    for v in l.iter() {
-        let mut set = Set::new();
-        set.insert(v.clone());
-
-        let mut map = f.clone();
-        *map.get_mut(&u).unwrap() = set;
-
-        if sac2_precolour(g0, g1, map.clone()).is_some() {
-            return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
+            if linear {
+                println!("Shortcut");
+                return None;
+            };
         }
     }
-    *backtracked = true;
     return None;
 }
 
@@ -670,27 +665,27 @@ where
     let mut worklist = HashSet::<(V0, V0, V0)>::new();
 
     let mut set = Set::<(V1, V1)>::new();
-    for u in g1.vertex_iter() {
-        for v in g1.vertex_iter() {
+    for u in g1.vertices() {
+        for v in g1.vertices() {
             set.insert((u.clone(), v.clone()));
         }
     }
 
-    for u in g0.vertex_iter() {
-        for v in g0.vertex_iter() {
+    for u in g0.vertices() {
+        for v in g0.vertices() {
             if u == v {
                 let mut s = Set::<(V1, V1)>::new();
-                for u in g1.vertex_iter() {
+                for u in g1.vertices() {
                     s.insert((u.clone(), u.clone()));
                 }
                 lists.insert((u.clone(), v.clone()), s);
-            } else if g0.contains_edge(u, v) {
-                let s = g1.edge_vec().iter().cloned().collect::<Set<_>>();
+            } else if g0.has_edge(u, v) {
+                let s = g1.edges().collect::<Set<_>>();
                 lists.insert((u.clone(), v.clone()), s);
             } else {
                 lists.insert((u.clone(), v.clone()), set.clone());
             }
-            for w in g0.vertex_iter() {
+            for w in g0.vertices() {
                 worklist.insert((u.clone(), w.clone(), v.clone()));
             }
         }
@@ -703,7 +698,7 @@ where
             if lists.get(&(x.clone(), y.clone())).unwrap().is_empty() {
                 return false;
             } else {
-                for u in g0.vertex_iter() {
+                for u in g0.vertices() {
                     if *u != x && *u != y {
                         worklist.insert((u.clone(), x.clone(), y.clone()));
                         worklist.insert((u.clone(), y.clone(), x.clone()));

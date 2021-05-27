@@ -139,23 +139,23 @@ impl From<&Triad> for AdjacencyList<u32> {
         let mut list = AdjacencyList::<u32>::new();
         let mut node_id = 1;
 
-        list.insert_vertex(0);
+        list.add_vertex(0);
 
         for i in triad.0.iter() {
             for (j, v) in i.chars().enumerate() {
-                list.insert_vertex(node_id);
+                list.add_vertex(node_id);
 
                 if j == 0 {
                     if v == '1' {
-                        list.insert_edge(&node_id, &0);
+                        list.add_edge(&node_id, &0);
                     } else {
-                        list.insert_edge(&0, &node_id);
+                        list.add_edge(&0, &node_id);
                     }
                 } else {
                     if v == '1' {
-                        list.insert_edge(&node_id, &(node_id - 1));
+                        list.add_edge(&node_id, &(node_id - 1));
                     } else {
-                        list.insert_edge(&(node_id - 1), &node_id);
+                        list.add_edge(&(node_id - 1), &node_id);
                     }
                 }
                 node_id += 1;
@@ -169,17 +169,17 @@ impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
     type Error = &'static str;
 
     fn try_from(list: AdjacencyList<T>) -> Result<Self, Self::Error> {
-        let mut edges = list.edge_vec().into_iter().collect::<HashSet<_>>();
+        let mut edges = list.edges().into_iter().collect::<HashSet<_>>();
         let mut triad_vec = Vec::<String>::new();
 
-        for u in list.vertex_iter() {
+        for u in list.vertices() {
             if list.degree(u) == 3 {
-                for (v, w) in list.edge_vec().iter() {
-                    if u == v {
+                for (v, w) in list.edges() {
+                    if *u == v {
                         edges.remove(&(v.clone(), w.clone()));
                         let s = arm_string(w.clone(), &mut edges, String::new());
                         triad_vec.push(String::from("0") + &s);
-                    } else if u == w {
+                    } else if *u == w {
                         edges.remove(&(v.clone(), w.clone()));
                         let s = arm_string(v.clone(), &mut edges, String::new());
                         triad_vec.push(String::from("1") + &s);

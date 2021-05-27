@@ -28,6 +28,7 @@ pub struct TripolysOptions {
     /// Triad to operate on
     pub triad: Option<Triad>,
 
+    /// Name of the file to which the graph will be written in dot format.
     /// Polymorphism to check
     pub polymorphism: Option<PolymorphismKind>,
 
