@@ -19,8 +19,13 @@
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
-    fs::OpenOptions,
+    fs::{File, OpenOptions},
     io::{self, Write},
+};
+use tripolys::{
+    adjacency_list::AdjacencyList,
+    polymorphism::{commutative, wnu},
+    triad::{level, Triad},
 };
 
 mod tripolys;
@@ -60,7 +65,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                 if let Some(ref triad) = options.triad {
                     println!("> Checking polymorphism...");
 
-                    if let Some(map) = find_polymorphism(&triad.into(), polymorphism) {
+                    if let Some(map) = find_polymorphism(&triad, polymorphism) {
                         let msg =
                             format!("\t✔ {} does have a {} polymorphism!", triad, &polymorphism);
                         println!("{}", msg.green());
@@ -95,7 +100,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                             range.start() + i as u32
                         );
                         vec.par_iter().for_each(|triad| {
-                            if find_polymorphism(&triad.into(), polymorphism).is_none() {
+                            if find_polymorphism(&triad, polymorphism).is_none() {
                                 let msg = format!(
                                     "\t✘ {} doesn't have a {} polymorphism!",
                                     &triad, polymorphism

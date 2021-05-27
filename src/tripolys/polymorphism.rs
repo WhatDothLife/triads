@@ -10,47 +10,48 @@ use crate::tripolys::consistency::{ac3_precolour, LocalConsistency};
 
 use super::{
     adjacency_list::Set,
-    consistency::{dfs_precolour, sac2_precolour},
+    consistency::find_precolour,
+    triad::{level, Triad},
 };
 
-pub fn wnu34<T: Eq + Clone + Hash>(x: &Vec<T>, y: &Vec<T>) -> bool {
-    if x.len() == y.len() {
-        wnu(x, y)
-    } else {
-        let v = only_elem(x);
-        let w = only_elem(y);
-        v.clone()
-            .and(w)
-            .and_then(|z| Some(z == v.unwrap()))
-            .unwrap_or(false)
 /// TODO f(x,...,x,y) = f(x,...,x,y,x) = ... = f(y,x,...,x)
+pub fn wnu<T: Eq + Clone + Hash + Debug>(a: &Vec<T>, b: &Vec<T>) -> bool {
+    assert!(a.len() >= 2 && b.len() >= 2, "length must be at least 2!");
+    let v = wnu_elem(a);
+    let w = wnu_elem(b);
+    match (v, w) {
+        (WNU::Unique(x1, y1), WNU::Unique(x2, y2)) => x1 == x2 && y1 == y2,
+        (WNU::Even(x), WNU::Unique(_, z)) => x == z,
+        (WNU::Unique(_, y), WNU::Even(z)) => y == z,
+        (WNU::None, _) => return false,
+        (_, WNU::None) => return false,
+        _ => return false,
     }
 }
 
-pub fn wnu<T: Eq + Clone + Hash>(x: &Vec<T>, y: &Vec<T>) -> bool {
-    assert!(x.len() >= 2 && y.len() >= 2, "length must be at least 2!");
-    let v = wnu_elem(x);
-    let w = wnu_elem(y);
-    v.clone()
-        .and(w)
-        .and_then(|z| Some(z == v.unwrap()))
-        .unwrap_or(false)
-}
-
-fn wnu_elem<T: Eq + Clone + Hash>(x: &Vec<T>) -> Option<T> {
-    // (elem, frequency of element)
+fn wnu_elem<T: Eq + Clone + Hash + Debug>(x: &Vec<T>) -> WNU<T> {
+    // (elem, frequency of elem)
     let elem_freq = x.iter().fold(HashMap::<T, usize>::new(), |mut m, y| {
         *m.entry(y.clone()).or_default() += 1;
         m
     });
-    if elem_freq.len() == 2 {
-        for (k, v) in elem_freq {
-            if v == 1 {
-                return Some(k);
-            };
+
+    let len = elem_freq.len();
+    if len == 1 {
+        return WNU::Even(elem_freq.keys().cloned().next().unwrap());
+    }
+    if len == 2 {
+        let vec = elem_freq.into_iter().collect::<Vec<_>>();
+        let (e0, f0) = vec[0].clone();
+        let (e1, f1) = vec[1].clone();
+        if f0 == 1 {
+            return WNU::Unique(e0, e1);
+        };
+        if f1 == 1 {
+            return WNU::Unique(e1, e0);
         }
     }
-    None
+    WNU::None
 }
 
 /// f(r,a,r,e) = f(a,r,e,a)
@@ -91,12 +92,10 @@ fn major_elem<T: Eq + Clone>(x: &Vec<T>) -> Option<T> {
     }
 }
 
-fn only_elem<T: Eq + Clone>(arr: &[T]) -> Option<T> {
-    if arr.windows(2).all(|w| w[0] == w[1]) {
-        Some(arr[0].clone())
-    } else {
-        None
-    }
+enum WNU<T: Eq + Clone + Hash> {
+    Unique(T, T),
+    Even(T),
+    None,
 }
 
 /// A polymorphism implemented as a wrapper struct around a `HashMap<Vec<U>, U>`.
@@ -123,10 +122,6 @@ where
     }
 }
 
-pub struct PolymorphismFinder<V>
-where
-    V: Clone + Eq + Hash,
-{
 /// Used to create a representation of a polymorphism finder. Polymorphism
 /// settings are set using the "builder pattern" with the
 /// [`PolymorphismFinder::find`] method being the terminal method that starts a
@@ -147,8 +142,9 @@ where
 /// ```
 /// [`PolymorphismFinder::find`]: ./struct.PolymorphismFinder.html#method.find
 #[allow(missing_debug_implementations)]
+pub struct PolymorphismFinder<V> {
     arity: Arity,
-    predicate: fn(&Vec<V>, &Vec<V>) -> bool,
+    predicate: Option<fn(&Vec<V>, &Vec<V>) -> bool>,
     conservative: bool,
     idempotent: bool,
     d: PhantomData<V>,
@@ -156,40 +152,52 @@ where
 
 impl<V> PolymorphismFinder<V>
 where
-    V: Clone + Eq + Hash + Send + Sync,
+    V: Clone + Eq + Hash + Send + Sync + Debug,
 {
-    pub fn new(arity: Arity, predicate: fn(&Vec<V>, &Vec<V>) -> bool) -> PolymorphismFinder<V> {
+    pub fn new(arity: Arity) -> PolymorphismFinder<V> {
         PolymorphismFinder {
             arity,
-            predicate,
+            predicate: None,
             conservative: false,
             idempotent: false,
             d: PhantomData {},
         }
     }
 
-    fn conservative(mut self, c: bool) -> Self {
+    pub fn predicate(mut self, predicate: fn(&Vec<V>, &Vec<V>) -> bool) -> Self {
+        self.predicate = Some(predicate);
+        self
+    }
+
     /// Whether the polymorphism should be conservative
+    pub fn conservative(mut self, c: bool) -> Self {
         self.conservative = c;
         self
     }
 
-    fn idempotent(mut self, i: bool) -> Self {
     /// Whether the polymorphism should be idempotent
+    pub fn idempotent(mut self, i: bool) -> Self {
         self.idempotent = i;
         self
     }
 
-    pub fn find<A>(&self, list: &AdjacencyList<V>, algorithm: &A) -> Option<Polymorphism<V>>
+    pub fn find<A>(
+        &self,
+        list: &AdjacencyList<V>,
+        algorithm: &A,
+        linear: bool,
+    ) -> Option<Polymorphism<V>>
     where
         A: LocalConsistency<Vec<V>, V>,
     {
         let mut product = match self.arity {
-            Arity::Single(i) => list.power(i),
-            Arity::Dual(i, j) => list.power(i).union(&list.power(j)),
+            Arity::Single(k) => list.power(k),
+            Arity::Dual(k, l) => list.power(k).union(&list.power(l)),
         };
 
-        product.contract_if(self.predicate);
+        if let Some(p) = self.predicate {
+            product.contract_if(p);
+        }
 
         let mut map = HashMap::<Vec<V>, Set<V>>::new();
 
@@ -216,6 +224,45 @@ where
         }
     }
 }
+
+impl PolymorphismFinder<u32> {
+    pub fn find_commutative<A>(
+        &self,
+        triad: &Triad,
+        algorithm: &A,
+        linear: bool,
+    ) -> Option<Polymorphism<u32>>
+    where
+        A: LocalConsistency<Vec<u32>, u32>,
+    {
+        let list: AdjacencyList<u32> = triad.into();
+        let mut product = AdjacencyList::<Vec<u32>>::new();
+        if let Arity::Single(k) = self.arity {
+            product = list.power(k);
+        }
+        if let Some(p) = self.predicate {
+            product.contract_if(p);
+        }
+        // Only consider consider the component with vertices (u, v) where u and
+        // v are on the same level.
+        let mut indicator = AdjacencyList::<Vec<u32>>::new();
+        for comp in product.components() {
+            let v = comp.vertices().next().unwrap();
+            if level(v[0], triad) == level(v[1], triad) {
+                indicator = indicator.union(&comp);
+            }
+        }
+
+        let mut map = HashMap::<Vec<u32>, Set<u32>>::new();
+
+        if self.conservative {
+            for vec in indicator.vertices() {
+                map.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
+            }
+        }
+
+        if self.idempotent {
+            for vec in indicator.vertices() {
                 if is_all_same(&vec) {
                     let mut s = Set::new();
                     s.insert(vec[0].clone());
@@ -224,7 +271,7 @@ where
             }
         }
 
-        if let Some(map) = dfs_precolour(&product, list, map, algorithm) {
+        if let Some(map) = find_precolour(&indicator, &list, map, algorithm, linear) {
             return Some(Polymorphism { map });
         } else {
             None
@@ -236,6 +283,7 @@ fn is_all_same<T: PartialEq>(arr: &[T]) -> bool {
     arr.windows(2).all(|w| w[0] == w[1])
 }
 
+#[derive(Debug)]
 pub enum Arity {
     Single(u32),
     Dual(u32, u32),
@@ -247,6 +295,7 @@ pub enum PolymorphismKind {
     Majority,
     Siggers,
     WNU34,
+    WNU3,
 }
 
 impl fmt::Display for PolymorphismKind {
@@ -256,31 +305,45 @@ impl fmt::Display for PolymorphismKind {
             PolymorphismKind::Majority => write!(f, "{}", "majority"),
             PolymorphismKind::Siggers => write!(f, "{}", "siggers"),
             PolymorphismKind::WNU34 => write!(f, "{}", "3/4 wnu"),
+            PolymorphismKind::WNU3 => write!(f, "{}", "3 wnu"),
         }
     }
 }
 
 /// Returns None, if `list` does not have a polymorphism of kind `kind`,
-pub fn find_polymorphism<V: Clone + Eq + Hash + Send + Sync>(
-    list: &AdjacencyList<V>,
-    kind: &PolymorphismKind,
-) -> Option<Polymorphism<V>> {
 /// otherwise a polymorphism of `list` is returned.
+pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polymorphism<u32>> {
     match kind {
-        PolymorphismKind::Commutative => {
-            PolymorphismFinder::new(Arity::Single(2), commutative).find(list, &ac3_precolour)
-        }
-        PolymorphismKind::Majority => {
-            PolymorphismFinder::new(Arity::Single(3), majority).find(list, &sac2_precolour)
-        }
-        PolymorphismKind::Siggers => find_polymorphism(list, &PolymorphismKind::Commutative)
+        PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
+            .predicate(commutative)
+            .find_commutative(triad, &ac3_precolour, false),
+
+        PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
+            .predicate(majority)
+            .find(&triad.into(), &ac3_precolour, false),
+
+        PolymorphismKind::Siggers => find_polymorphism(triad, &PolymorphismKind::Commutative)
             .or_else(|| {
-                PolymorphismFinder::new(Arity::Single(4), siggers).find(list, &ac3_precolour)
+                PolymorphismFinder::new(Arity::Single(3))
+                    .predicate(wnu)
+                    .find(&triad.into(), &ac3_precolour, false)
+                    .or_else(|| {
+                        PolymorphismFinder::new(Arity::Single(4))
+                            .predicate(siggers)
+                            .find(&triad.into(), &ac3_precolour, false)
+                    })
             }),
+
         PolymorphismKind::WNU34 => {
-            find_polymorphism(list, &PolymorphismKind::Majority).or_else(|| {
-                PolymorphismFinder::new(Arity::Dual(3, 4), wnu34).find(list, &ac3_precolour)
+            find_polymorphism(triad, &PolymorphismKind::Majority).or_else(|| {
+                PolymorphismFinder::new(Arity::Dual(3, 4))
+                    .predicate(wnu)
+                    .find(&triad.into(), &ac3_precolour, false)
             })
         }
+
+        PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))
+            .predicate(wnu)
+            .find(&triad.into(), &ac3_precolour, false),
     }
 }

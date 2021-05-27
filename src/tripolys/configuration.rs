@@ -350,6 +350,7 @@ impl PolymorphismRegistry {
             "majority" => Ok(PolymorphismKind::Majority),
             "siggers" => Ok(PolymorphismKind::Siggers),
             "3/4wnu" => Ok(PolymorphismKind::WNU34),
+            "3wnu" => Ok(PolymorphismKind::WNU3),
             &_ => {
                 return Err(OptionsError::PolymorphismNotFound);
             }
