@@ -22,11 +22,7 @@ use std::{
     fs::{File, OpenOptions},
     io::{self, Write},
 };
-use tripolys::{
-    adjacency_list::AdjacencyList,
-    polymorphism::{commutative, wnu},
-    triad::{level, Triad},
-};
+use tripolys::adjacency_list::AdjacencyList;
 
 mod tripolys;
 

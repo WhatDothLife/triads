@@ -8,6 +8,7 @@ use std::error::Error;
 use std::hash::Hash;
 
 use clap::{App, Arg};
+use criterion::PlotConfiguration;
 use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
