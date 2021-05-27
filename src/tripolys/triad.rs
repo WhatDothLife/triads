@@ -1,20 +1,19 @@
-use core::fmt::Debug;
-use rayon::prelude::*;
 use std::{
     cmp::min,
     collections::{HashMap, HashSet},
     convert::TryFrom,
-    fmt::{self, Display},
-    fs::{self, OpenOptions},
+    fmt, fs,
     hash::Hash,
     io::{self, Write},
     str::FromStr,
     sync::Mutex,
 };
 
-use crate::tripolys::adjacency_list::{is_core, AdjacencyList, Set};
-use crate::tripolys::consistency::ac3_precolour;
+use crate::tripolys::adjacency_list::{AdjacencyList, Set};
 use crate::Globals;
+use rayon::prelude::*;
+
+use super::consistency::{ac3, ac3_precolour};
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
 ///
@@ -49,7 +48,7 @@ impl Triad {
     /// ```
     /// let t = Triad::from("0", "1", "00");
     /// ```
-    pub fn from(a: &str, b: &str, c: &str) -> Triad {
+    pub fn from_strs(a: &str, b: &str, c: &str) -> Triad {
         Triad(vec![a.into(), b.into(), c.into()])
     }
 
@@ -67,7 +66,6 @@ impl Triad {
         }
         panic!("Triad already has 3 arms!");
     }
-}
 
     /// Returns `true` if the triad is a core, and `false` otherwise.  A graph G is
     /// called a core if every endomorphism of G is an automorphism.
@@ -143,7 +141,7 @@ impl FromStr for Triad {
         if let Some(arm1) = arms.get(0) {
             if let Some(arm2) = arms.get(1) {
                 if let Some(arm3) = arms.get(2) {
-                    return Ok(Triad::from(arm1, arm2, arm3));
+                    return Ok(Triad::from_strs(arm1, arm2, arm3));
                 }
             }
         }
@@ -211,7 +209,7 @@ impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
         if let Some(arm1) = triad_vec.get(0) {
             if let Some(arm2) = triad_vec.get(1) {
                 if let Some(arm3) = triad_vec.get(2) {
-                    return Ok(Triad::from(arm1, arm2, arm3));
+                    return Ok(Triad::from_strs(arm1, arm2, arm3));
                 }
             }
         }
@@ -220,7 +218,7 @@ impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
     }
 }
 
-// Helper function that encodes a set of edges as a String of '0's and '1's
+/// Helper function that encodes a set of edges as a String of '0's and '1's.
 fn arm_string<T>(u: T, vec: &mut HashSet<(T, T)>, mut s: String) -> String
 where
     T: Eq + Hash + Clone,
@@ -256,7 +254,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
                 .map(|x| x.to_string())
                 .collect();
             arm_list_len = arms;
-        } else if let Ok(mut file) = OpenOptions::new().append(true).create(true).open(&path) {
+        } else if let Ok(mut file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
             for arm in last.iter() {
                 arm_list_len.push(format!("{}{}", '0', arm.clone()));
                 arm_list_len.push(format!("{}{}", '1', arm.clone()));
@@ -291,13 +289,11 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
 /// A modification of `ac3-precolour` that restricts the domain of vertex 0 to 0. It
 /// is used to determine whether a partial triad is a rooted core.
 fn ac3_precolour_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
+    let mut map = HashMap::<u32, Set<u32>>::new();
     let mut set = Set::<u32>::new();
     set.insert(0);
-
-    let mut pre_color = HashMap::<u32, Set<u32>>::new();
-    pre_color.insert(0, set);
-
-    ac3_precolour(g, g, pre_color)
+    map.insert(0, set);
+    ac3_precolour(g, g, map)
 }
 
 // A cache to speed up the generation of core triads
@@ -339,7 +335,7 @@ impl Cache {
             for pair in pairs_vec.into_iter() {
                 self.pairs.insert(pair);
             }
-        } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
+        } else if let Ok(file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
             let file_locked = Mutex::new(file);
             let pairs_locked = Mutex::new(Some(Vec::<_>::new()));
 
@@ -453,7 +449,7 @@ impl Constraint {
     }
 }
 
-impl Display for Constraint {
+impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Constraint::Nodes => write!(f, "nodes"),
@@ -520,7 +516,7 @@ fn _cores(
         for triad in triad_vec.into_iter() {
             triadlist.lock().unwrap().as_mut().unwrap().push(triad);
         }
-    } else if let Ok(file) = OpenOptions::new().append(true).create(true).open(&path) {
+    } else if let Ok(file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
         let file_locked = Mutex::new(file);
 
         cons.triplets(num).par_iter().for_each(|[i, j, k]| {
@@ -638,4 +634,38 @@ impl FileParser {
             .collect::<Vec<_>>();
         Ok(arms)
     }
+}
+
+/// Returns the level of the vertex v.
+///
+/// # Panics
+///
+/// Panics, if the vertex doesn't exist.
+pub fn level(v: u32, t: &Triad) -> i32 {
+    let mut level = 0;
+    let mut count = v;
+    for arm in t.0.clone() {
+        if count <= (arm.len() as u32) {
+            level = level_arm(count, &arm);
+            break;
+        } else {
+            count -= arm.len() as u32;
+        }
+    }
+    level
+}
+
+fn level_arm(mut count: u32, arm: &str) -> i32 {
+    let mut level = 0;
+    let mut chars = arm.chars();
+    while count > 0 {
+        let c = chars.next().unwrap();
+        if c == '0' {
+            level += 1;
+        } else {
+            level -= 1;
+        }
+        count -= 1;
+    }
+    level
 }
