@@ -11,10 +11,10 @@
 //! a tree which has a single vertex of degree 3 and otherwise only vertices of
 //! degree 2 and 1.
 
-#![deny(missing_docs)]
-// #![deny(missing_doc_code_examples)]
+#![deny(clippy::missing_docs)]
+// #![deny(clippy::missing_doc_code_examples)]
 #![deny(clippy::all)]
-#![deny(missing_debug_implementations)]
+#![deny(clippy::missing_debug_implementations)]
 
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
