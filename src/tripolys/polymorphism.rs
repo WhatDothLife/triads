@@ -56,23 +56,24 @@ fn wnu_elem<T: Eq + Clone + Hash + Debug>(x: &Vec<T>) -> WNU<T> {
 
 /// f(r,a,r,e) = f(a,r,e,a)
 fn siggers<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
+    assert!(x.len() == 4 && y.len() == 4, "length must be equal to 4!");
     let r = x[1] == y[0] && x[1] == y[2];
     let a = x[0] == x[3] && x[0] == y[1];
     let e = x[2] == y[3];
     r && a && e
 }
 
-fn commutative<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
-    assert!(x.len() == 2 && y.len() == 2, "length must be equal to 2");
-    x[0] == y[1] && x[1] == y[0]
 /// f(x,y) = f(y,x)
+fn commutative<T: Eq>(a: &Vec<T>, b: &Vec<T>) -> bool {
+    assert!(a.len() == 2 && b.len() == 2, "length must be equal to 2!");
+    a[0] == b[1] && a[1] == b[0]
 }
 
-fn majority<T: Eq + Clone>(x: &Vec<T>, y: &Vec<T>) -> bool {
-    assert!(x.len() == 3 && y.len() == 3, "length must be equal to 3");
-    let v = major_elem(x);
-    let w = major_elem(y);
 /// f(x,x,y) = f(x,y,x) = f(y,x,x) = x
+fn majority<T: Eq + Clone>(a: &Vec<T>, b: &Vec<T>) -> bool {
+    assert!(a.len() == 3 && b.len() == 3, "length must be equal to 3!");
+    let v = major_elem(a);
+    let w = major_elem(b);
     v.clone()
         .and(w)
         .and_then(|x| Some(x == v.unwrap()))
