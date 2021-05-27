@@ -25,7 +25,6 @@ use std::{
 
 mod tripolys;
 
-use crate::tripolys::adjacency_list::{is_core, write_dot};
 use crate::tripolys::configuration::{Constraint, Globals, Run, TripolysOptions};
 use crate::tripolys::polymorphism::find_polymorphism;
 use crate::tripolys::triad::{cores_length_range, cores_nodes_range};
@@ -41,7 +40,8 @@ fn run(options: TripolysOptions) -> io::Result<()> {
     match options.run {
         Run::Dot => {
             if let Some(triad) = &options.triad {
-                write_dot(&triad.into());
+                let mut f = File::create(&options.dot.unwrap()).unwrap();
+                AdjacencyList::<u32>::from(triad).to_dot(&mut f);
             }
         }
 

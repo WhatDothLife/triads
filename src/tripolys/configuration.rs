@@ -29,6 +29,8 @@ pub struct TripolysOptions {
     pub triad: Option<Triad>,
 
     /// Name of the file to which the graph will be written in dot format.
+    pub dot: Option<String>,
+
     /// Polymorphism to check
     pub polymorphism: Option<PolymorphismKind>,
 
@@ -141,7 +143,9 @@ impl TripolysOptions {
                     .short("D")
                     .long("dot")
                     .requires("triad")
-                    .help("Prints triad in dot format"),
+                    // .default_value("graph.dot")
+                    .help("Name of the file to which the graph will be written in dot format.")
+                    .takes_value(true),
             )
             .arg(
                 Arg::with_name("polymorphism")
@@ -190,6 +194,11 @@ impl TripolysOptions {
         } else {
             None
         };
+        let dot = if let Some(v) = args.value_of("dot") {
+            Some(v.into())
+        } else {
+            None
+        };
         let polymorphism = if let Some(p) = args.value_of("polymorphism") {
             Some(PolymorphismRegistry::get(&p)?)
         } else {
@@ -229,6 +238,7 @@ impl TripolysOptions {
             constraint,
             range,
             triad,
+            dot,
             polymorphism,
             conservative,
             idempotent,
