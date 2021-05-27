@@ -5,15 +5,15 @@ A program for generating core triads and checking polymorphisms.
 
 * Installation
 #+begin_src sh
-git clone https://github.com/WhatDothLife/triads.git
-cd triads
+git clone https://github.com/WhatDothLife/tripolys.git
+cd tripolys
 cargo build
 #+end_src
 
 * Usage
 Use ~--help~
 
-Example usage: ~./triads -p commutative -n 9~
+Example usage: ~./tripolys -p commutative -n 9~
 
 * License
 This program is released under the terms of the GNU General Public License v3.0.
