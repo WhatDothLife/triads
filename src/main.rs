@@ -1,7 +1,7 @@
 //! # Tripolys
 //!
-//! `tripolys` is a program for generating core triads and checking
-//! polymorphisms on them.
+//! `tripolys` is a program for generating triads and checking polymorphisms on
+//! them.
 //!
 //! For a given digraph H the complexity of the constraint satisfaction problem
 //! for H, also called CSP(H), only depends on the set of polymorphisms of H.
