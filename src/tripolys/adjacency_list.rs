@@ -399,6 +399,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 
     /// Contracts each two vertices of the graph that satisfy the predicate `p`.
+    /// TODO Complexity
     ///
     /// # Examples
     ///
@@ -432,7 +433,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// assert_eq!(vertices.len(), 3);
     /// assert_eq!(edges.len(), 2);
     /// ```
-    pub fn contract_iff(&mut self, p: impl Fn(&T, &T) -> bool) {
+    pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
         let vs = self.vertices().cloned().collect::<Vec<_>>();
         let mut removed = HashSet::<T>::new();
 
@@ -440,7 +441,6 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
             if removed.contains(&v) {
                 continue;
             }
-
             for j in i + 1..vs.len() {
                 let w = vs.get(j).unwrap();
                 if removed.contains(w) {
@@ -519,7 +519,6 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 
     fn components_rec(&self, v: &T, graph: &mut AdjacencyList<T>, to_visit: &mut HashSet<T>) {
-        // println!("Yeeee {}", count);
         to_visit.remove(v);
         graph.add_vertex(v.clone());
 
@@ -600,28 +599,6 @@ impl<T: Clone + Eq + Hash + Debug> AdjacencyList<T> {
     pub fn to_dot_file(&self, path: &str) {
         let mut f = File::create(path).unwrap();
         self.to_dot(&mut f);
-    }
-
-    pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
-        let vs = self.vertices().cloned().collect::<Vec<_>>();
-        let mut removed = HashSet::<T>::new();
-
-        for (i, v) in vs.iter().enumerate() {
-            if removed.contains(&v) {
-                continue;
-            }
-            for j in i + 1..vs.len() {
-                let w = vs.get(j).unwrap();
-                if removed.contains(w) {
-                    continue;
-                }
-                if p(v, w) {
-                    self.contract_vertices(v, w);
-                    println!("Contracting done...");
-                    removed.insert(w.clone());
-                }
-            }
-        }
     }
 }
 
