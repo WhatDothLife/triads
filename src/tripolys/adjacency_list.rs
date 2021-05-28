@@ -272,6 +272,18 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         edges.0.size() + edges.1.size()
     }
 
+    /// Returns the total count of outgoing edges of the vertex `x`.
+    pub fn out_degree(&self, x: &T) -> usize {
+        let edges = self.adjacency_list.get(x).unwrap();
+        edges.0.size()
+    }
+
+    /// Returns the total count of incoming edges of the vertex `x`.
+    pub fn in_degree(&self, x: &T) -> usize {
+        let edges = self.adjacency_list.get(x).unwrap();
+        edges.1.size()
+    }
+
     /// Adds an edge to the graph.
     ///
     /// If the graph did not have this edge present, `true` is returned.
