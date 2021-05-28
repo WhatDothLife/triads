@@ -266,7 +266,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         self.remove_vertex(&y);
     }
 
-    /// Returns the total count of neighboring vertices of the vertex x.
+    /// Returns the total count of neighboring vertices of the vertex `x`.
     pub fn degree(&self, x: &T) -> usize {
         let edges = self.adjacency_list.get(x).unwrap();
         edges.0.size() + edges.1.size()
@@ -411,7 +411,11 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 
     /// Contracts each two vertices of the graph that satisfy the predicate `p`.
-    /// TODO Complexity
+    ///
+    /// **NOTE:** The method has a quadratic running time. A linear running time
+    /// can be achieved by generating sets of vertices that must be contracted
+    /// and then do it by hand by using the [`AdjacencyList::contract_vertices`]
+    /// method.
     ///
     /// # Examples
     ///
@@ -445,6 +449,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// assert_eq!(vertices.len(), 3);
     /// assert_eq!(edges.len(), 2);
     /// ```
+    /// [`AdjacencyList::contract_vertices`]: ./struct.AdjacencyList.html#method.contract_vertices
     pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
         let vs = self.vertices().cloned().collect::<Vec<_>>();
         let mut removed = HashSet::<T>::new();
