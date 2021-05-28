@@ -144,7 +144,7 @@ impl TripolysOptions {
                     .short("D")
                     .long("dot")
                     .requires("triad")
-                    .default_value("graph.dot")
+                    // .default_value("graph.dot")
                     .help("Name of the file to which the graph will be written in dot format")
                     .takes_value(true),
             )
