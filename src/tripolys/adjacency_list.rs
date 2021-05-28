@@ -246,24 +246,15 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// assert!(g.has_vertex(&1));
     /// ```
     pub fn contract_vertices(&mut self, x: &T, y: &T) {
-        let (out_edges, in_edges) = self.adjacency_list.get(y).unwrap().clone();
-        // let (out_edges, in_edges) = self.remove_vertex(&y);
+        let (out_edges, in_edges) = self.remove_vertex(&y).unwrap();
 
         for u in in_edges.iter() {
-            // TODO this looks awful
-            if !self.has_edge(u, x) {
-                self.add_edge(u, x);
-            }
+            self.add_edge(u, x);
         }
 
         for u in out_edges.iter() {
-            // TODO this looks awful
-            if !self.has_edge(x, u) {
-                self.add_edge(x, u);
-            }
+            self.add_edge(x, u);
         }
-
-        self.remove_vertex(&y);
     }
 
     /// Returns the total count of neighboring vertices of the vertex `x`.
@@ -299,9 +290,14 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// assert_eq!(graph.add_vertex(2), false);
     /// assert_eq!(graph.len(), 1);
     /// ```
-    pub fn add_edge(&mut self, u: &T, v: &T) {
-        self.adjacency_list.get_mut(u).unwrap().0.insert(v.clone());
-        self.adjacency_list.get_mut(v).unwrap().1.insert(u.clone());
+    pub fn add_edge(&mut self, u: &T, v: &T) -> bool {
+        if !self.has_edge(u, v) {
+            self.adjacency_list.get_mut(u).unwrap().0.insert(v.clone());
+            self.adjacency_list.get_mut(v).unwrap().1.insert(u.clone());
+            true
+        } else {
+            false
+        }
     }
 
     /// Removes an edge from the graph, returning true if the edge was previously
@@ -471,10 +467,11 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         }
     }
 
-    /// Performs the disjoint union of G and H, which is the graph with vertex
-    /// set V(G) ∪ V(H).
+    /// Performs the union of G and H, which is the graph with vertex set V(G) ∪
+    /// V(H).
     ///
-    /// **NOTE:** The method assumes that the two vertex sets are disjoint.
+    /// **NOTE:** Be aware whether the two vertex sets V(G) and V(H) are
+    /// disjoint or not.
     ///
     /// # Examples
     ///
@@ -539,9 +536,9 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         to_visit.remove(v);
         graph.add_vertex(v.clone());
 
-        let (o, i) = self.adjacency_list.get(v).unwrap();
+        let (out_edges, in_edges) = self.adjacency_list.get(v).unwrap();
 
-        for u in o.iter() {
+        for u in out_edges.iter() {
             graph.add_vertex(u.clone());
             if !graph.has_edge(v, u) {
                 graph.add_edge(v, u);
@@ -551,7 +548,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
             }
             self.components_rec(u, graph, to_visit);
         }
-        for u in i.iter() {
+        for u in in_edges.iter() {
             graph.add_vertex(u.clone());
             if !graph.has_edge(u, v) {
                 graph.add_edge(u, v);
@@ -575,9 +572,9 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         visited.insert(v.clone());
         graph.add_vertex(v.clone());
 
-        let (o, i) = self.adjacency_list.get(v).unwrap();
+        let (out_edges, in_edges) = self.adjacency_list.get(v).unwrap();
 
-        for u in o.iter() {
+        for u in out_edges.iter() {
             if visited.contains(u) {
                 continue;
             }
@@ -585,7 +582,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
             graph.add_edge(v, u);
             self.component_rec(u, graph, visited);
         }
-        for u in i.iter() {
+        for u in in_edges.iter() {
             if visited.contains(u) {
                 continue;
             }
@@ -621,7 +618,7 @@ impl<T: Clone + Eq + Hash + Debug> AdjacencyList<T> {
 
 impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
     /// Returns the k-ary product graph. The resulting graph uses `Vec` to represent
-    /// the resulting (mathematical) tuple. The method uses parallelism.
+    /// the resulting tuples. The method uses parallelism.
     /// # Examples
     ///
     /// ```rust
@@ -678,32 +675,4 @@ impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
 
         graph
     }
-}
-
-// TODO So far this assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
-/// Parses a graph from dot format into an `AdjacencyList`.
-pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
-    let mut list = AdjacencyList::<Vec<u32>>::new();
-    let mut split_vec = dot.split_terminator('\n').collect::<Vec<_>>();
-    split_vec.pop();
-    split_vec.remove(0);
-    let edges = split_vec
-        .iter()
-        .map(|x| x.split(&['[', ',', ' ', ']'][..]).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
-    for vec in edges {
-        let v1 = vec![
-            vec[1].parse::<u32>().unwrap(),
-            vec[3].parse::<u32>().unwrap(),
-        ];
-        let v2 = vec![
-            vec[7].parse::<u32>().unwrap(),
-            vec[9].parse::<u32>().unwrap(),
-        ];
-        list.add_vertex(v1.clone());
-        list.add_vertex(v2.clone());
-        list.add_edge(&v1, &v2);
-    }
-
-    list
 }
