@@ -29,7 +29,7 @@ pub struct TripolysOptions {
     /// Triad to operate on
     pub triad: Option<Triad>,
 
-    /// Name of the file to which the graph will be written in dot format.
+    /// Name of the file to which the graph will be written in dot format
     pub dot: Option<String>,
 
     /// Polymorphism to check
@@ -144,8 +144,8 @@ impl TripolysOptions {
                     .short("D")
                     .long("dot")
                     .requires("triad")
-                    // .default_value("graph.dot")
-                    .help("Name of the file to which the graph will be written in dot format.")
+                    .default_value("graph.dot")
+                    .help("Name of the file to which the graph will be written in dot format")
                     .takes_value(true),
             )
             .arg(
