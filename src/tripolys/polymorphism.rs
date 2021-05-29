@@ -300,7 +300,6 @@ impl PolymorphismFinder {
                 }
             }
         }
-        println!("DEBUG");
 
         if let Some(map) = find_precolour(&product, list, map, algorithm, linear) {
             return Some(Polymorphism { map });
@@ -432,11 +431,11 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
             }),
 
         PolymorphismKind::WNU34 => {
-            // find_polymorphism(triad, &PolymorphismKind::Majority).or_else(|| {
-            PolymorphismFinder::new(Arity::Dual(3, 4))
-                .predicate(wnu)
-                .find(&triad.into(), &ac3_precolour, false)
-            // })
+            find_polymorphism(triad, &PolymorphismKind::Majority).or_else(|| {
+                PolymorphismFinder::new(Arity::Dual(3, 4))
+                    .predicate(wnu)
+                    .find(&triad.into(), &ac3_precolour, false)
+            })
         }
 
         PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))
