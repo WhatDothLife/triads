@@ -246,6 +246,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// assert!(g.has_vertex(&1));
     /// ```
     pub fn contract_vertices(&mut self, x: &T, y: &T) {
+        assert!(x != y, "vertex can not be contracted with itself!");
         let (out_edges, in_edges) = self.remove_vertex(&y).unwrap();
 
         for u in in_edges.iter() {
