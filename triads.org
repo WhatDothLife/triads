@@ -1,0 +1,204 @@
+* Deprecated
+** TODO
+*** TODO Remove open files when crashing
+*** TODO Add break 'outer
+*** TODO Add consistency option
+**** TODO Add HashMap argument to search
+*** DONE Add consistency algo argument to search
+*** TODO Use &str, &[T] or &T to allow for more generic code.
+*** TODO Add negative flag
+*** DONE Add a --conservative flag
+$f(v_1,...,v_n) \in \{v_1,...,v_n\}$
+*** TODO Implement finding Core of Graph
+
+** Code
+#+begin_src rustic
+// TODO So far this assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
+/// Parses a graph from dot format into an `AdjacencyList`.
+pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
+    let mut list = AdjacencyList::<Vec<u32>>::new();
+    let mut split_vec = dot.split_terminator('\n').collect::<Vec<_>>();
+    split_vec.pop();
+    split_vec.remove(0);
+    let edges = split_vec
+        .iter()
+        .map(|x| x.split(&['[', ',', ' ', ']'][..]).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    for vec in edges {
+        let v1 = vec![
+            vec[1].parse::<u32>().unwrap(),
+            vec[3].parse::<u32>().unwrap(),
+        ];
+        let v2 = vec![
+            vec[7].parse::<u32>().unwrap(),
+            vec[9].parse::<u32>().unwrap(),
+        ];
+        list.add_vertex(v1.clone());
+        list.add_vertex(v2.clone());
+        list.add_edge(&v1, &v2);
+    }
+
+    list
+}
+
+/// Returns `true` if `g` is a core, and `false` otherwise.  A graph G is
+/// called a core if every endomorphism of G is an automorphism.
+///
+/// # Examples
+/// ```
+/// let triad = Triad::from_strs("1000", "11", "0");
+///
+/// asserteq!(true, is_core(&triad));
+/// ```
+pub fn is_core<'a, V, T>(g: &'a T) -> bool
+where
+    &'a T: Into<AdjacencyList<V>>,
+    V: Eq + Hash + Clone,
+{
+    for (_, v) in ac3(&g.into(), &g.into()).unwrap() {
+        if v.size() != 1 {
+            return false;
+        }
+    }
+    true
+}
+
+pub fn dfs_sac_backtrack<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+) -> Option<HashMap<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+{
+    let f = match ac3(g0, g1) {
+        Some(v) => v,
+        None => return None,
+    };
+    let vec = f.clone().into_iter().collect::<Vec<_>>();
+    let mut backtracked = false;
+
+    if let Some(_) = dfs_sac_backtrack_rec(g0, g1, f, vec.into_iter(), &mut backtracked) {
+        if backtracked {
+            return None;
+        } else {
+            return Some(HashMap::<_, _>::new());
+        }
+    } else {
+        return Some(HashMap::<_, _>::new());
+    }
+}
+
+fn dfs_sac_backtrack_rec<V0, V1, I>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: Domains<V0, V1>,
+    mut iter: I,
+    backtracked: &mut bool,
+) -> Option<Domains<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    I: Iterator<Item = (V0, Set<V1>)>,
+{
+    let (u, l) = if let Some(v) = iter.next() {
+        v
+    } else {
+        return Some(f);
+    };
+
+    for v in l.iter() {
+        let mut set = Set::new();
+        set.insert(v.clone());
+
+        let mut map = f.clone();
+        *map.get_mut(&u).unwrap() = set;
+
+        if sac2_precolour(g0, g1, map.clone()).is_some() {
+            return dfs_sac_backtrack_rec(g0, g1, map, iter, backtracked);
+        }
+    }
+    *backtracked = true;
+    return None;
+}
+
+impl<T, U> Mul<&AdjacencyList<U>> for &AdjacencyList<T>
+where
+    T: Eq + Hash + Clone,
+    U: Eq + Hash + Clone,
+{
+    type Output = AdjacencyList<(T, U)>;
+
+    fn mul(self, rhs: &AdjacencyList<U>) -> AdjacencyList<(T, U)> {
+        let mut list = AdjacencyList::new();
+
+        for v1 in self.vertex_iter().cloned() {
+            for v2 in rhs.vertex_iter().cloned() {
+                list.insert_vertex((v1.clone(), v2));
+            }
+        }
+
+        for (x1, y1) in self.edge_vec().iter() {
+            for (x2, y2) in rhs.edge_vec().iter() {
+                list.insert_edge(&(x1.clone(), x2.clone()), &(y1.clone(), y2.clone()));
+            }
+        }
+
+        list
+    }
+}
+
+impl<T: Eq + Hash + Clone + FromStr> AdjacencyList<T> {
+    pub fn from_edge_list(list: &str) -> Result<AdjacencyList<T>, <T as FromStr>::Err> {
+        let tree = list
+            .split(&[',', '[', ']', ' '][..])
+            .filter(|&x| !x.is_empty())
+            .collect::<Vec<_>>();
+
+        let mut list = AdjacencyList::<T>::new();
+        for (i, _) in tree.iter().enumerate().step_by(2) {
+            let v1 = tree[i].parse::<T>()?;
+            let v2 = tree[i + 1].parse::<T>()?;
+
+            list.insert_vertex(v1.clone());
+            list.insert_vertex(v2.clone());
+            list.insert_edge(&v1, &v2);
+        }
+        Ok(list)
+    }
+}
+#+end_src
+
+* TODO
+** DONE Binary Symmetric
+When testing for polymorphisms of triads T , not all of the vertices of the
+indicator structure need to be generated; in particular, if we are looking for
+binary polymorphisms of T , it suffices to consider vertices (u, v) of T where u
+and v are on the same level.
+
+** DONE ternary weak nu operations
+Implement a test for ternary weak nu operations. Only for those core triads that don’t
+have a binary symmetric polymorphism, run this test. Feed those into the tests from
+item 3 and 4. They should all have a 3-4 wean nu otherwise we found a counterexample
+to Bulin’s conjecture.
+
+** TODO Table
+Run the above for a larger and larger number of vertices n. Make a table which contains
+for each of the steps above the number of triads that passes the respective test, and
+the running time spent to doing the tests. In this way, we may evaluate where the
+bottleneck is in the above procedure when we want to verify Bulin’s conjecture for all
+triads up to a certain size n.
+
+** TODO Idempotence
+Do all the above, but restrict to idempotent polymorphisms. In this case, we no longer
+restrict our attention to core triads, but consider all triads on a given number of vertices.
+* Results
+| Triad                   | AC3     | SAC2       | Majority? |
+|-------------------------+---------+------------+-----------|
+| 0,0,0                   | 3 s     | 2 s        | j         |
+| 01,00,10                | 9 s     | 2:48 m     | j         |
+| 011,00,10               | 4 s     | 36:00+ m   | j         |
+| 011,011,101             | 5 s     | 1:27:00+ h | j         |
+| 01100,01110,10100       | 1:04 m  | ?          | j         |
+| 10110000,1001111,01011  | 13:42 m | ?          | j         |
+| 10110000,1001111,010111 | 3 s     | ?          | n         |
