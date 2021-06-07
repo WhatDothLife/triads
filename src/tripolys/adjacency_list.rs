@@ -128,6 +128,20 @@ impl<T: Eq> Set<T> {
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
+
+    /// Clears the set, removing all values.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let mut s = Set::new();
+    /// s.insert(1);
+    /// s.clear(1);
+    /// assert!(s.is_empty());
+    /// ```
+    pub fn clear(&mut self) {
+        self.items.clear()
+    }
 }
 
 impl<T: Eq> FromIterator<T> for Set<T> {
