@@ -21,14 +21,15 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     fs::{File, OpenOptions},
     io::{self, Write},
+    str::FromStr,
 };
-use tripolys::adjacency_list::AdjacencyList;
+use tripolys::{adjacency_list::AdjacencyList, triad::Triad};
 
 mod tripolys;
 
 use crate::tripolys::configuration::{Constraint, Globals, Run, TripolysOptions};
-use crate::tripolys::polymorphism::find_polymorphism;
 use crate::tripolys::triad::{cores_length_range, cores_nodes_range};
+use crate::tripolys::{consistency::sac_opt, polymorphism::find_polymorphism};
 
 /// Print error message to stderr and terminate
 fn error(message: &str) -> ! {
@@ -82,6 +83,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                     }
                 } else if let Some(constraint) = &options.constraint {
                     let range = options.range.unwrap();
+
                     println!("> Generating triads...");
                     let triads = match constraint {
                         Constraint::Length => cores_length_range(range.clone()),
@@ -131,15 +133,57 @@ fn run(options: TripolysOptions) -> io::Result<()> {
 }
 
 fn main() {
-    let options = TripolysOptions::parse();
+    // let options = TripolysOptions::parse();
 
-    let res = match options {
-        Ok(opts) => run(opts),
-        Err(ref e) => error(&e.to_string()),
-    };
+    // let res = match options {
+    //     Ok(opts) => run(opts),
+    //     Err(ref e) => error(&e.to_string()),
+    // };
 
-    match res {
-        Ok(_) => {}
-        Err(e) => error(&e.to_string()),
-    }
+    // match res {
+    //     Ok(_) => {}
+    //     Err(e) => error(&e.to_string()),
+    // }
+
+    let t = Triad::from_str("0111,00,1").unwrap();
+    let h: AdjacencyList<u32> = (&t).into();
+    let g = h.power(3);
+
+    let sac = sac_opt(&g, &h);
+    // println!("{:?}", &sac);
+
+    // println!("SAC1 start!");
+    // let sac1_res = sac1(&g, &h).unwrap();
+    // println!("SAC1 finisched!");
+
+    // println!("SAC2 start!");
+    // let sac2_res = sac2(&g, &h).unwrap();
+    // println!("SAC2 finisched!");
+
+    // for (k, v) in sac1_res {
+    //     println!("k: {:?}", k);
+    //     println!("\t v: {:?}", v);
+    //     println!("\t v2: {:?}", sac2_res.get(&k).unwrap());
+    // }
+
+    // let mut s = Set::new();
+    // s.insert(1);
+
+    // let mut sac = sac_res.clone();
+    // sac.insert(vec![0, 2, 4], s).unwrap();
+
+    // let ac_res = ac3_precolour(&g, &h, sac);
+    // println!("ac_res: {:?}", &ac_res);
+
+    // for (k, d) in sac_res.clone() {
+    //     for v in d.iter() {
+    //         let mut s = Set::new();
+    //         s.insert(v.clone());
+
+    //         let mut sac = sac_res.clone();
+    //         sac.insert(k, s).unwrap();
+    //         let ac_res = ac3_precolour(&g, &g, sac);
+    //         println!("ac_res: {:?}", &ac_res);
+    //     }
+    // }
 }

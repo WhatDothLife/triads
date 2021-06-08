@@ -4,12 +4,12 @@ use std::{
     hash::Hash,
 };
 
-use crate::tripolys::adjacency_list::AdjacencyList;
 use crate::tripolys::consistency::{ac3_precolour, LocalConsistency};
+use crate::tripolys::{adjacency_list::AdjacencyList, consistency::Domains};
 
 use super::{
     adjacency_list::Set,
-    consistency::{find_precolour, sac2_precolour},
+    consistency::find_precolour,
     triad::{level, Triad},
 };
 
@@ -265,7 +265,7 @@ impl PolymorphismFinder {
             Arity::Dual(k, l) => list.power(k).union(&list.power(l)),
         };
 
-        let mut map = HashMap::<Vec<u32>, Set<u32>>::new();
+        let mut domains = Domains::<Vec<u32>, u32>::new();
 
         if let Some(p) = self.identity {
             let vecs = p(
@@ -279,14 +279,22 @@ impl PolymorphismFinder {
                 if self.majority {
                     let mut s = Set::new();
                     s.insert(vec[0][0]);
-                    map.insert(vec[0].clone(), s);
+                    domains.insert(vec[0].clone(), s);
                 }
             }
         }
+        println!(
+            "Vertices in indicator: {:?}",
+            &product.vertices().collect::<Vec<_>>().len()
+        );
+        println!(
+            "Edges in indicator: {:?}",
+            &product.edges().collect::<Vec<_>>().len()
+        );
 
         if self.conservative {
             for vec in product.vertices() {
-                map.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
+                domains.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
             }
         }
 
@@ -295,12 +303,12 @@ impl PolymorphismFinder {
                 if is_all_same(&vec) {
                     let mut s = Set::new();
                     s.insert(vec[0].clone());
-                    map.insert(vec.clone(), s);
+                    domains.insert(vec.clone(), s);
                 }
             }
         }
 
-        if let Some(map) = find_precolour(&product, list, map, algorithm, linear) {
+        if let Some(map) = find_precolour(&product, list, domains, algorithm, linear) {
             return Some(Polymorphism { map });
         } else {
             None
@@ -346,11 +354,11 @@ impl PolymorphismFinder {
             }
         }
 
-        let mut map = HashMap::<Vec<u32>, Set<u32>>::new();
+        let mut domains = Domains::<Vec<u32>, u32>::new();
 
         if self.conservative {
             for vec in indicator.vertices() {
-                map.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
+                domains.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
             }
         }
 
@@ -359,12 +367,12 @@ impl PolymorphismFinder {
                 if is_all_same(&vec) {
                     let mut s = Set::new();
                     s.insert(vec[0].clone());
-                    map.insert(vec.clone(), s);
+                    domains.insert(vec.clone(), s);
                 }
             }
         }
 
-        if let Some(map) = find_precolour(&indicator, &list, map, algorithm, linear) {
+        if let Some(map) = find_precolour(&indicator, &list, domains, algorithm, linear) {
             return Some(Polymorphism { map });
         } else {
             None

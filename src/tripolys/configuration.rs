@@ -13,7 +13,7 @@ use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
 use crate::tripolys::consistency::{
-    ac1_precolour, ac3_precolour, sac1_precolour, sac2_precolour, LocalConsistency,
+    ac1_precolour, ac3_precolour, sac1_precolour, LocalConsistency,
 };
 use crate::tripolys::polymorphism::PolymorphismKind;
 use crate::tripolys::triad::Triad;
@@ -335,7 +335,6 @@ impl AlgorithmRegistry {
             "ac1" => Ok(Box::new(ac1_precolour)),
             "ac3" => Ok(Box::new(ac3_precolour)),
             "sac1" => Ok(Box::new(sac1_precolour)),
-            "sac2" => Ok(Box::new(sac2_precolour)),
             // "pc2" => Ok(Box::new(pc2)),
             &_ => Err(OptionsError::AlgorithmNotFound),
         }

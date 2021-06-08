@@ -1,6 +1,6 @@
 use std::{
     cmp::min,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     convert::TryFrom,
     fmt, fs,
     hash::Hash,
@@ -13,7 +13,7 @@ use crate::tripolys::adjacency_list::{AdjacencyList, Set};
 use crate::Globals;
 use rayon::prelude::*;
 
-use super::consistency::{ac3, ac3_precolour};
+use super::consistency::{ac3, ac3_precolour, Domains};
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
 ///
@@ -98,7 +98,7 @@ impl Triad {
     /// asserteq!(true, t.is_rooted_core());
     /// ```
     pub fn is_rooted_core(&self) -> bool {
-        let map = ac3_precolour_0(&self.into()).unwrap();
+        let map = ac3_precolour_0(&self.into(), &self.into()).unwrap();
         for (_, v) in map {
             if v.size() != 1 {
                 return false;
@@ -106,6 +106,16 @@ impl Triad {
         }
         true
     }
+}
+
+/// A modification of `ac3-precolour` that restricts the domain of vertex 0 to {0}. It
+/// is used to determine whether a partial triad is a rooted core.
+fn ac3_precolour_0(g0: &AdjacencyList<u32>, g1: &AdjacencyList<u32>) -> Option<Domains<u32, u32>> {
+    let mut domains = Domains::from_lists(g0, g1);
+    let mut set = Set::<u32>::new();
+    set.insert(0);
+    domains.insert(0, set);
+    ac3_precolour(g0, g1, domains)
 }
 
 impl fmt::Display for Triad {
@@ -284,16 +294,6 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
         arm_list.push(arm_list_len)
     }
     arm_list
-}
-
-/// A modification of `ac3-precolour` that restricts the domain of vertex 0 to 0. It
-/// is used to determine whether a partial triad is a rooted core.
-fn ac3_precolour_0(g: &AdjacencyList<u32>) -> Option<HashMap<u32, Set<u32>>> {
-    let mut map = HashMap::<u32, Set<u32>>::new();
-    let mut set = Set::<u32>::new();
-    set.insert(0);
-    map.insert(0, set);
-    ac3_precolour(g, g, map)
 }
 
 // A cache to speed up the generation of core triads

@@ -3,8 +3,6 @@ use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
 use crate::tripolys::adjacency_list::{AdjacencyList, Set};
 
-type Domains<V0, V1> = HashMap<V0, Set<V1>>;
-
 pub trait LocalConsistency<V0: Eq + Clone + Hash, V1: Eq + Clone + Hash>:
     Fn(&AdjacencyList<V0>, &AdjacencyList<V1>, Domains<V0, V1>) -> Option<Domains<V0, V1>>
 {
@@ -26,17 +24,17 @@ impl<V0: Eq + Clone + Hash, V1: Eq + Clone + Hash, F> LocalConsistency<V0, V1> f
 pub fn ac1_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    mut f: Domains<V0, V1>,
+    mut domains: Domains<V0, V1>,
 ) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    for v0 in g0.vertices() {
-        if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
-        }
-    }
+    // for v0 in g0.vertices() {
+    //     if !f.contains_key(&v0) {
+    //         f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
+    //     }
+    // }
 
     let mut edges = g0.edges();
 
@@ -44,9 +42,9 @@ where
     while changed {
         changed = false;
         for (u0, v0) in &mut edges {
-            for u1 in f.get(&u0).unwrap().clone().iter() {
+            for u1 in domains.get_domain(&u0).unwrap().clone().iter() {
                 let mut is_possible = false;
-                for v1 in f.get(&v0).unwrap().iter() {
+                for v1 in domains.get_domain(&v0).unwrap().iter() {
                     if g1.has_edge(u1, v1) {
                         is_possible = true;
                         break;
@@ -54,17 +52,17 @@ where
                 }
 
                 if !is_possible {
-                    f.get_mut(&u0).unwrap().remove(&u1);
-                    if f.get(&u0).unwrap().is_empty() {
+                    domains.get_domain_mut(&u0).unwrap().remove(&u1);
+                    if domains.get_domain(&u0).unwrap().is_empty() {
                         return None;
                     }
                     changed = true;
                 }
             }
 
-            for v1 in f.get(&v0).unwrap().clone().iter() {
+            for v1 in domains.get_domain(&v0).unwrap().clone().iter() {
                 let mut is_possible = false;
-                for u1 in f.get(&u0).unwrap().iter() {
+                for u1 in domains.get_domain(&u0).unwrap().iter() {
                     if g1.has_edge(u1, v1) {
                         is_possible = true;
                         break;
@@ -72,8 +70,8 @@ where
                 }
 
                 if !is_possible {
-                    f.get_mut(&v0).unwrap().remove(&v1);
-                    if f.get(&v0).unwrap().is_empty() {
+                    domains.get_domain_mut(&v0).unwrap().remove(&v1);
+                    if domains.get_domain(&v0).unwrap().is_empty() {
                         return None;
                     }
                     changed = true;
@@ -82,7 +80,7 @@ where
         }
     }
 
-    Some(f)
+    Some(domains)
 }
 
 /// A modification of `ac1_precolour` that is initialized with a list of all nodes
@@ -92,7 +90,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    ac1_precolour(g0, g1, Domains::new())
+    ac1_precolour(g0, g1, Domains::from_lists(g0, g1))
 }
 
 /// Implementation of the AC-3 algorithm due to Mackworth 1977, specialized to
@@ -112,11 +110,11 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    for v0 in g0.vertices() {
-        if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
-        }
-    }
+    // for v0 in g0.vertices() {
+    //     if !f.contains_key(&v0) {
+    //         f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
+    //     }
+    // }
 
     let edges = g0.edges();
     let mut worklist = HashSet::<(V0, V0, bool)>::new();
@@ -144,7 +142,7 @@ where
 
         if arc_reduce(x.clone(), y, dir, &mut f, &g1) {
             // domain of x changed, was the empty list derived?
-            if f.get(&x).unwrap().is_empty() {
+            if f.get_domain(&x).unwrap().is_empty() {
                 return None;
             } else {
                 for item in items.get(&x).unwrap().iter().cloned() {
@@ -163,7 +161,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    ac3_precolour(g0, g1, Domains::new())
+    ac3_precolour(g0, g1, Domains::from_lists(&g0, &g1))
 }
 
 // Implementation of the arc-reduce operation from ac3.
@@ -180,9 +178,9 @@ where
     V1: Eq + Clone + Hash,
 {
     let mut changed = false;
-    for vx in f.get(&x).unwrap().clone().iter() {
+    for vx in f.get_domain(&x).unwrap().clone().iter() {
         let mut is_possible = false;
-        for vy in f.get(&y).unwrap().iter() {
+        for vy in f.get_domain(&y).unwrap().iter() {
             if dir {
                 if g1.has_edge(vy, vx) {
                     is_possible = true;
@@ -197,13 +195,21 @@ where
         }
 
         if !is_possible {
-            f.get_mut(&x).unwrap().remove(&vx);
+            f.get_domain_mut(&x).unwrap().remove(&vx);
             changed = true;
         }
     }
     changed
 }
 
+/// Implementation of the SAC-1 algorithm due to Bessiere and Debruyne 1997,
+/// specialized to operate on graphs.
+///
+/// f represents a list of vertices for each vertex of g0. If there's no list
+/// specified for a vertex v, a list of all nodes of g1 is assigned to v.
+///
+/// Returns None, if an empty domain is derived for some vertex v, otherwise
+/// singleton-arc-consistent domains are returned.
 pub fn sac1_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
@@ -213,12 +219,6 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    for v0 in g0.vertices() {
-        if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
-        }
-    }
-
     let mut e = match ac3_precolour(g0, g1, f) {
         Some(v) => v,
         None => return None,
@@ -257,328 +257,7 @@ where
     V0: Eq + Clone + Hash,
     V1: Eq + Clone + Hash,
 {
-    sac1_precolour(g0, g1, Domains::new())
-}
-
-fn ac_init<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: &mut HashMap<V0, Set<V1>>,
-    m: &mut HashMap<V0, HashSet<V1>>,
-    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
-    s_ac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_ac: &mut Vec<(V0, V1)>,
-) where
-    V0: Eq + Hash + Clone,
-    V1: Eq + Hash + Clone,
-{
-    let edges = g0.edges();
-
-    for (u0, v0) in edges {
-        for u1 in f.get(&u0).unwrap().clone().iter() {
-            let mut total = 0;
-            for v1 in f.get(&v0).unwrap().iter() {
-                if g1.has_edge(u1, v1) {
-                    total += 1;
-                    if let Some(entry) = s_ac.get_mut(&(v0.clone(), v1.clone())) {
-                        entry.push((u0.clone(), u1.clone()));
-                    } else {
-                        s_ac.insert((v0.clone(), v1.clone()), vec![(u0.clone(), u1.clone())]);
-                    }
-                }
-            }
-            if total == 0 {
-                f.get_mut(&u0).unwrap().remove(&u1);
-                if let Some(entry) = m.get_mut(&u0) {
-                    entry.insert(u1.clone());
-                } else {
-                    let mut set = HashSet::<V1>::new();
-                    set.insert(u1.clone());
-                    m.insert(u0.clone(), set);
-                }
-                list_ac.push((u0.clone(), u1.clone()));
-            } else {
-                if let Some(entry) = counter.get_mut(&(u0.clone(), v0.clone())) {
-                    entry.insert(u1.clone(), total);
-                } else {
-                    let mut map = HashMap::<V1, u32>::new();
-                    map.insert(u1.clone(), total);
-                    counter.insert((u0.clone(), v0.clone()), map);
-                }
-            }
-        }
-    }
-}
-
-fn ac_prune<V0, V1>(
-    f: &mut HashMap<V0, Set<V1>>,
-    m: &mut HashMap<V0, HashSet<V1>>,
-    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
-    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_ac: &mut Vec<(V0, V1)>,
-    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_sac: &mut Vec<(V0, V1)>,
-) where
-    V0: Eq + Hash + Clone + Debug,
-    V1: Eq + Hash + Clone + Debug,
-{
-    while !list_ac.is_empty() {
-        let (j, b) = list_ac.pop().unwrap();
-
-        if let Some(entry) = s_ac.get(&(j.clone(), b)) {
-            for (i, a) in entry.iter() {
-                let count = counter
-                    .get_mut(&(i.clone(), j.clone()))
-                    .unwrap()
-                    .get_mut(&a)
-                    .unwrap();
-                *count -= 1;
-
-                if *count == 0 && !m.get(&i).unwrap().contains(&a) {
-                    f.get_mut(&i).unwrap().remove(a);
-
-                    m.get_mut(&i).unwrap().insert(a.clone());
-
-                    list_ac.push((i.clone(), a.clone()));
-
-                    // println!("s_ac: {:?}", &s_ac);
-                    // println!("s_sac: {:?}", &s_sac);
-                    if let Some(entry) = s_sac.get(&(i.clone(), a.clone())) {
-                        for (k, c) in entry.iter() {
-                            list_sac.push((k.clone(), c.clone()));
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn sac_init<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: &mut HashMap<V0, Set<V1>>,
-    m: &mut HashMap<V0, HashSet<V1>>,
-    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
-    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
-    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_sac: &mut Vec<(V0, V1)>,
-) where
-    V0: Eq + Hash + Clone + Debug,
-    V1: Eq + Hash + Clone + Debug,
-{
-    for i in g0.vertices() {
-        for a in f.get(&i).unwrap().clone().iter() {
-            let mut set = Set::new();
-            set.insert(a.clone());
-
-            let mut d = f.clone();
-            d.insert(i.clone(), set);
-
-            if let Some(_) = ac3_precolour(g0, g1, d.clone()) {
-                for (j, l) in d.iter() {
-                    for b in l.iter() {
-                        // let vec = s_sac.get_mut(&(j.clone(), b.clone())).unwrap();
-                        // vec.push((i.clone(), a.clone()));
-                        if let Some(entry) = s_sac.get_mut(&(j.clone(), b.clone())) {
-                            entry.push((i.clone(), a.clone()));
-                        } else {
-                            s_sac.insert((j.clone(), b.clone()), vec![(i.clone(), a.clone())]);
-                        }
-                    }
-                }
-            } else {
-                f.get_mut(&i).unwrap().remove(a);
-
-                if let Some(entry) = m.get_mut(&i) {
-                    entry.insert(a.clone());
-                } else {
-                    let mut entry = HashSet::<V1>::new();
-                    entry.insert(a.clone());
-                    m.insert(i.clone(), entry);
-                }
-
-                let mut list = vec![(i.clone(), a.clone())];
-                ac_prune(f, m, counter, s_ac, &mut list, s_sac, list_sac);
-
-                if let Some(entry) = s_sac.get(&(i.clone(), a.clone())) {
-                    for (k, c) in entry.iter() {
-                        list_sac.push((k.clone(), c.clone()));
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn sac_prune<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: &mut HashMap<V0, Set<V1>>,
-    m: &mut HashMap<V0, HashSet<V1>>,
-    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
-    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_ac: &mut Vec<(V0, V1)>,
-    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
-    list_sac: &mut Vec<(V0, V1)>,
-) where
-    V0: Eq + Hash + Clone + Debug,
-    V1: Eq + Hash + Clone + Debug,
-{
-    while !list_sac.is_empty() {
-        let (u0, u1) = list_sac.pop().unwrap();
-        if f.get(&u0).unwrap().contains(&u1) {
-            let mut set = Set::new();
-            set.insert(u1.clone());
-
-            let mut f2 = f.clone();
-            f2.insert(u0.clone(), set);
-
-            if let None = ac3_precolour(g0, g1, f.clone()) {
-                f.get_mut(&u0).unwrap().remove(&u1);
-                m.get_mut(&u0).unwrap().insert(u1.clone());
-                ac_prune(f, m, counter, s_ac, list_ac, s_sac, list_sac);
-                for elem in s_sac.get(&(u0, u1)).unwrap().iter() {
-                    list_sac.push(elem.clone());
-                }
-            }
-        }
-    }
-}
-
-pub fn sac2_precolour<V0, V1>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    mut f: HashMap<V0, Set<V1>>,
-) -> Option<HashMap<V0, Set<V1>>>
-where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
-{
-    let mut m = HashMap::<V0, HashSet<V1>>::new();
-    let mut counter = HashMap::<(V0, V0), HashMap<V1, u32>>::new();
-
-    let mut s_ac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
-    let mut list_ac = Vec::<(V0, V1)>::new();
-    let mut s_sac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
-    let mut list_sac = Vec::<(V0, V1)>::new();
-
-    for v0 in g0.vertices() {
-        if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
-        }
-        m.insert(v0.clone(), HashSet::<V1>::new());
-    }
-
-    println!("ac_init");
-    ac_init(
-        g0,
-        g1,
-        &mut f,
-        &mut m,
-        &mut counter,
-        &mut s_ac,
-        &mut list_ac,
-    );
-    println!("ac_prune");
-    ac_prune(
-        &mut f,
-        &mut m,
-        &mut counter,
-        &s_ac,
-        &mut list_ac,
-        &mut s_sac,
-        &mut list_sac,
-    );
-    println!("sac_init");
-    sac_init(
-        g0,
-        g1,
-        &mut f,
-        &mut m,
-        &mut counter,
-        &s_ac,
-        &mut s_sac,
-        &mut list_sac,
-    );
-    println!("sac_prune");
-    sac_prune(
-        g0,
-        g1,
-        &mut f,
-        &mut m,
-        &mut counter,
-        &s_ac,
-        &mut list_ac,
-        &mut s_sac,
-        &mut list_sac,
-    );
-    Some(f)
-}
-
-/// A modification of `sac2_precolour` that is initialized with a list of all nodes
-/// of g1 for each node in g0.
-pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
-where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
-{
-    sac2_precolour(g0, g1, HashMap::new())
-}
-
-pub fn linear_search_precolour<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: HashMap<V0, Set<V1>>,
-    algo: &A,
-) -> Option<HashMap<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    A: LocalConsistency<V0, V1>,
-{
-    find_precolour(g0, g1, Domains::new(), algo, true)
-}
-
-// TODO The name already shows that this must be refactored
-pub fn linear_search<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    algo: &A,
-) -> Option<HashMap<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    A: LocalConsistency<V0, V1>,
-{
-    linear_search_precolour(g0, g1, Domains::new(), algo)
-}
-
-pub fn df_search_precolour<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: HashMap<V0, Set<V1>>,
-    algo: &A,
-) -> Option<HashMap<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    A: LocalConsistency<V0, V1>,
-{
-    find_precolour(g0, g1, Domains::new(), algo, false)
-}
-
-pub fn df_search<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    algo: &A,
-) -> Option<HashMap<V0, V1>>
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    A: LocalConsistency<V0, V1>,
-{
-    df_search_precolour(g0, g1, Domains::new(), algo)
+    sac1_precolour(g0, g1, Domains::from_lists(g0, g1))
 }
 
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
@@ -587,7 +266,7 @@ where
 pub fn find_precolour<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    f: HashMap<V0, Set<V1>>,
+    domains: Domains<V0, V1>,
     ac: &A,
     linear: bool,
 ) -> Option<HashMap<V0, V1>>
@@ -596,15 +275,15 @@ where
     V1: Eq + Clone + Hash,
     A: LocalConsistency<V0, V1>,
 {
-    let e = if let Some(v) = ac(g0, g1, f) {
+    let domains_ac = if let Some(v) = ac(g0, g1, domains) {
         v
     } else {
         return None;
     };
 
-    let vec = e.clone().into_iter().collect::<Vec<_>>();
+    let iter = domains_ac.clone().into_iter();
 
-    if let Some(map) = search_rec(g0, g1, e, vec.into_iter(), ac, linear) {
+    if let Some(map) = search_rec(g0, g1, domains_ac, iter, ac, linear) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -641,9 +320,10 @@ where
         set.insert(v.clone());
 
         let mut map = f.clone();
-        *map.get_mut(&u).unwrap() = set;
+        *map.get_domain_mut(&u).unwrap() = set;
 
-        if let Some(_) = ac(g0, g1, map.clone()) {
+        if let Some(map_sac) = ac(g0, g1, map.clone()) {
+            map = map_sac;
             return search_rec(g0, g1, map, iter, ac, linear);
         } else {
             if linear {
@@ -763,30 +443,24 @@ where
 /// f represents a list of vertices for each vertex of g0. If there's no list
 /// specified for a vertex v, a list of all nodes of g1 is assigned to v.
 ///
-/// Returns None, if an empty domain is derived for some vertex v, otherwise a
-/// singleton-arc-consistent map is returned.
+/// Returns None, if an empty domain is derived for some vertex v, otherwise
+/// singleton-arc-consistent domains are returned.
 pub fn sac_opt_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    mut f: HashMap<V0, Set<V1>>,
-) -> Option<HashMap<V0, Set<V1>>>
+    domains: Domains<V0, V1>,
+) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash + Debug,
     V1: Eq + Clone + Hash + Debug,
 {
-    for v0 in g0.vertices() {
-        if !f.contains_key(&v0) {
-            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
-        }
-    }
-
-    let mut res = match ac3_precolour(g0, g1, f) {
+    let mut res = match ac3_precolour(g0, g1, domains) {
         Some(v) => v,
         None => return None,
     };
 
     let mut pending_list = HashSet::<(V0, V1)>::new();
-    let mut domains = HashMap::<(V0, V1), HashMap<V0, Set<V1>>>::new();
+    let mut ds = HashMap::<(V0, V1), Domains<V0, V1>>::new();
     let mut q = HashMap::<(V0, V1), Set<(V0, V1)>>::new();
 
     // Init phase
@@ -797,7 +471,7 @@ where
 
             let mut dom = res.clone();
             dom.insert(i.clone(), set);
-            domains.insert((i.clone(), a.clone()), dom);
+            ds.insert((i.clone(), a.clone()), dom);
 
             let mut set = Set::<(V0, V1)>::new();
             for b in v.iter() {
@@ -813,20 +487,20 @@ where
     // Propag phase
     while let Some((i, a)) = pending_list.clone().iter().next() {
         pending_list.remove(&(i.clone(), a.clone()));
-        let d = domains.get_mut(&(i.clone(), a.clone())).unwrap();
+        let d = ds.get_mut(&(i.clone(), a.clone())).unwrap();
         for (x, y) in q.get(&(i.clone(), a.clone())).unwrap().iter() {
-            d.get_mut(&x).unwrap().remove(y);
+            d.get_domain_mut(&x).unwrap().remove(y);
         }
         if let Some(v) = ac3_precolour(g0, g1, d.clone()) {
             q.get_mut(&(i.clone(), a.clone())).unwrap().clear();
             *d = v;
         } else {
-            res.get_mut(&i).unwrap().remove(&a);
-            if res.get(&i).unwrap().is_empty() {
+            res.get_domain_mut(&i).unwrap().remove(&a);
+            if res.get_domain(&i).unwrap().is_empty() {
                 return None;
             }
-            for ((j, b), m) in domains.iter_mut() {
-                if m.get_mut(&i).unwrap().remove(&a) {
+            for ((j, b), m) in ds.iter_mut() {
+                if m.get_domain_mut(&i).unwrap().remove(&a) {
                     q.get_mut(&(j.clone(), b.clone()))
                         .unwrap()
                         .insert((i.clone(), a.clone()));
@@ -837,4 +511,73 @@ where
     }
 
     Some(res)
+}
+
+pub fn sac_opt<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Domains<V0, V1>>
+where
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
+{
+    sac_opt_precolour(g0, g1, Domains::from_lists(g0, g1))
+}
+
+#[derive(Clone, Debug)]
+pub struct Domains<V0: Eq + Hash, V1: Eq> {
+    domains: HashMap<V0, Set<V1>>,
+}
+
+impl<V0: Eq + Hash, V1: Eq> Domains<V0, V1> {
+    pub fn new() -> Domains<V0, V1> {
+        Domains {
+            domains: HashMap::<V0, Set<V1>>::new(),
+        }
+    }
+
+    pub fn insert(&mut self, v: V0, d: Set<V1>) -> Option<Set<V1>> {
+        self.domains.insert(v, d)
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (&V0, &Set<V1>)> + 'a {
+        self.domains.iter()
+    }
+
+    pub fn domains(&self) -> impl Iterator<Item = &Set<V1>> {
+        self.domains.values()
+    }
+
+    pub fn variables(&self) -> impl Iterator<Item = &V0> {
+        self.domains.keys()
+    }
+
+    pub fn get_domain(&self, v: &V0) -> Option<&Set<V1>> {
+        self.domains.get(v)
+    }
+
+    pub fn get_domain_mut(&mut self, v: &V0) -> Option<&mut Set<V1>> {
+        self.domains.get_mut(v)
+    }
+
+    pub fn remove(&mut self, v: &V0, w: &V1) -> bool {
+        self.domains.get_mut(&v).unwrap().remove(w)
+    }
+}
+
+// and we'll implement IntoIterator
+impl<V0: Eq + Hash, V1: Eq> IntoIterator for Domains<V0, V1> {
+    type Item = (V0, Set<V1>);
+    type IntoIter = std::collections::hash_map::IntoIter<V0, Set<V1>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.domains.into_iter()
+    }
+}
+
+impl<V0: Eq + Hash + Clone, V1: Eq + Clone + Hash> Domains<V0, V1> {
+    pub fn from_lists(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Domains<V0, V1> {
+        let mut domains = Domains::new();
+        for v0 in g0.vertices() {
+            domains.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
+        }
+        domains
+    }
 }
