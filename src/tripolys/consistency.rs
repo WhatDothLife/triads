@@ -263,12 +263,11 @@ where
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
 /// locally consistent. The type of local consistency is determined by the
 /// algorithm `algo`.
-pub fn find_precolour<V0, V1, A>(
+pub fn search_precolour<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     domains: Domains<V0, V1>,
     ac: &A,
-    linear: bool,
 ) -> Option<HashMap<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -283,7 +282,7 @@ where
 
     let iter = domains_ac.clone().into_iter();
 
-    if let Some(map) = search_rec(g0, g1, domains_ac, iter, ac, linear) {
+    if let Some(map) = search_rec(g0, g1, domains_ac, iter, ac) {
         Some(
             map.iter()
                 .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
@@ -294,14 +293,13 @@ where
     }
 }
 
-/// Recursive helper function for `dfs`.
+/// Recursive helper function.
 fn search_rec<V0, V1, I, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     f: Domains<V0, V1>,
     mut iter: I,
     ac: A,
-    linear: bool,
 ) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -324,15 +322,47 @@ where
 
         if let Some(map_sac) = ac(g0, g1, map.clone()) {
             map = map_sac;
-            return search_rec(g0, g1, map, iter, ac, linear);
-        } else {
-            if linear {
-                println!("Shortcut");
-                return None;
-            };
+            return search_rec(g0, g1, map, iter, ac);
         }
     }
     return None;
+}
+
+pub fn find_precolour<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    domains: Domains<V0, V1>,
+    algo: &A,
+) -> Option<Domains<V0, V1>>
+where
+    V0: Eq + Clone + Hash,
+    V1: Eq + Clone + Hash,
+    A: LocalConsistency<V0, V1>,
+{
+    let mut domains = if let Some(v) = algo(g0, g1, domains) {
+        v
+    } else {
+        return None;
+    };
+
+    for v0 in g0.vertices() {
+        let dom = domains.get_domain(&v0).unwrap();
+        if dom.size() > 1 {
+            for v1 in dom.clone().iter() {
+                let mut set = Set::new();
+                set.insert(v1.clone());
+
+                let mut domains_tmp = domains.clone();
+                domains_tmp.insert(v0.clone(), set);
+
+                if let Some(domains_algo) = algo(g0, g1, domains_tmp) {
+                    domains = domains_algo;
+                    break;
+                }
+            }
+        }
+    }
+    Some(domains)
 }
 
 /// Implementation of the PC-2 algorithm by Mackworth 1977, specialized to work
@@ -487,6 +517,7 @@ where
     // Propag phase
     while let Some((i, a)) = pending_list.clone().iter().next() {
         pending_list.remove(&(i.clone(), a.clone()));
+        println!("pending_list.size() = {:?}", pending_list.len());
         let d = ds.get_mut(&(i.clone(), a.clone())).unwrap();
         for (x, y) in q.get(&(i.clone(), a.clone())).unwrap().iter() {
             d.get_domain_mut(&x).unwrap().remove(y);
@@ -559,6 +590,10 @@ impl<V0: Eq + Hash, V1: Eq> Domains<V0, V1> {
 
     pub fn remove(&mut self, v: &V0, w: &V1) -> bool {
         self.domains.get_mut(&v).unwrap().remove(w)
+    }
+
+    pub fn contains_variable(&self, v: &V0) -> bool {
+        self.domains.contains_key(v)
     }
 }
 

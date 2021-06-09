@@ -4,12 +4,12 @@ use std::{
     hash::Hash,
 };
 
-use crate::tripolys::consistency::{ac3_precolour, LocalConsistency};
+use crate::tripolys::consistency::{ac3_precolour, find_precolour, LocalConsistency};
 use crate::tripolys::{adjacency_list::AdjacencyList, consistency::Domains};
 
 use super::{
     adjacency_list::Set,
-    consistency::find_precolour,
+    consistency::{sac_opt_precolour, search_precolour},
     triad::{level, Triad},
 };
 
@@ -212,6 +212,7 @@ pub struct PolymorphismFinder {
     conservative: bool,
     idempotent: bool,
     majority: bool,
+    linear: bool,
 }
 
 impl PolymorphismFinder {
@@ -222,6 +223,7 @@ impl PolymorphismFinder {
             conservative: false,
             idempotent: false,
             majority: false,
+            linear: false,
         }
     }
 
@@ -251,27 +253,24 @@ impl PolymorphismFinder {
         self
     }
 
-    pub fn find<A>(
-        &self,
-        list: &AdjacencyList<u32>,
-        algorithm: &A,
-        linear: bool,
-    ) -> Option<Polymorphism<u32>>
+    pub fn linear(mut self, l: bool) -> Self {
+        self.linear = l;
+        self
+    }
+
+    pub fn find<A>(&self, g: &AdjacencyList<u32>, algorithm: &A) -> Option<Polymorphism<u32>>
     where
         A: LocalConsistency<Vec<u32>, u32>,
     {
         let mut product = match self.arity {
-            Arity::Single(k) => list.power(k),
-            Arity::Dual(k, l) => list.power(k).union(&list.power(l)),
+            Arity::Single(k) => g.power(k),
+            Arity::Dual(k, l) => g.power(k).union(&g.power(l)),
         };
 
         let mut domains = Domains::<Vec<u32>, u32>::new();
 
         if let Some(p) = self.identity {
-            let vecs = p(
-                &self.arity,
-                list.vertices().collect::<Vec<_>>().len() as u32,
-            );
+            let vecs = p(&self.arity, g.vertices().collect::<Vec<_>>().len() as u32);
             for vec in vecs {
                 for i in 1..vec.len() {
                     product.contract_vertices(&vec[0], &vec[i]);
@@ -308,10 +307,31 @@ impl PolymorphismFinder {
             }
         }
 
-        if let Some(map) = find_precolour(&product, list, domains, algorithm, linear) {
-            return Some(Polymorphism { map });
+        // Vertices with no registered domain are assigned a list of all
+        // vertices of the graph g
+        for v0 in product.vertices() {
+            if !domains.contains_variable(&v0) {
+                domains.insert(v0.clone(), g.vertices().cloned().collect::<Set<_>>());
+            }
+        }
+
+        if self.linear {
+            if let Some(map) = find_precolour(&product, g, domains, algorithm) {
+                return Some(Polymorphism {
+                    map: map
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
+                        .collect(),
+                });
+            } else {
+                None
+            }
         } else {
-            None
+            if let Some(map) = search_precolour(&product, g, domains, algorithm) {
+                return Some(Polymorphism { map });
+            } else {
+                None
+            }
         }
     }
 }
@@ -372,7 +392,7 @@ impl PolymorphismFinder {
             }
         }
 
-        if let Some(map) = find_precolour(&indicator, &list, domains, algorithm, linear) {
+        if let Some(map) = search_precolour(&indicator, &list, domains, algorithm) {
             return Some(Polymorphism { map });
         } else {
             None
@@ -422,17 +442,18 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
             .majority(true)
-            .find(&triad.into(), &ac3_precolour, false),
+            .linear(true)
+            .find(&triad.into(), &sac_opt_precolour),
 
         PolymorphismKind::Siggers => find_polymorphism(triad, &PolymorphismKind::Commutative)
             .or_else(|| {
                 PolymorphismFinder::new(Arity::Single(3))
                     .identity(wnu)
-                    .find(&triad.into(), &ac3_precolour, false)
+                    .find(&triad.into(), &ac3_precolour)
                     .or_else(|| {
                         PolymorphismFinder::new(Arity::Single(4))
                             .identity(siggers)
-                            .find(&triad.into(), &ac3_precolour, false)
+                            .find(&triad.into(), &ac3_precolour)
                     })
             }),
 
@@ -440,12 +461,13 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
             find_polymorphism(triad, &PolymorphismKind::Majority).or_else(|| {
                 PolymorphismFinder::new(Arity::Dual(3, 4))
                     .identity(wnu)
-                    .find(&triad.into(), &ac3_precolour, false)
+                    .linear(true)
+                    .find(&triad.into(), &sac_opt_precolour)
             })
         }
 
         PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
-            .find(&triad.into(), &ac3_precolour, false),
+            .find(&triad.into(), &ac3_precolour),
     }
 }
