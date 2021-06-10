@@ -13,6 +13,8 @@ use super::{
     triad::{level, Triad},
 };
 
+type Identity = fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>;
+
 pub fn wnu(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
     let mut vec = Vec::<Vec<Vec<u32>>>::new();
     for i in 0..num {
@@ -32,8 +34,7 @@ pub fn wnu(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
 }
 
 fn wnu_i(arity: u32, i: u32, num: u32) -> Vec<Vec<u32>> {
-    let mut v = Vec::<Vec<u32>>::new();
-    v.push(vec![i; arity as usize]);
+    let mut v = vec![vec![i; arity as usize]];
 
     for j in 0..num {
         if i == j {
@@ -77,21 +78,21 @@ pub fn siggers(_: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
 }
 
 /// TODO f(x,...,x,y) = f(x,...,x,y,x) = ... = f(y,x,...,x)
-pub fn wnu_p<T: Eq + Clone + Hash + Debug>(a: &Vec<T>, b: &Vec<T>) -> bool {
+pub fn wnu_p<T: Eq + Clone + Hash + Debug>(a: &[T], b: &[T]) -> bool {
     assert!(a.len() >= 2 && b.len() >= 2, "length must be at least 2!");
-    let v = wnu_elem(a);
-    let w = wnu_elem(b);
-    match (v, w) {
+    let elem_a = wnu_elem(a);
+    let elem_b = wnu_elem(b);
+    match (elem_a, elem_b) {
         (WNU::Unique(x1, y1), WNU::Unique(x2, y2)) => x1 == x2 && y1 == y2,
         (WNU::Even(x), WNU::Unique(_, z)) => x == z,
         (WNU::Unique(_, y), WNU::Even(z)) => y == z,
-        (WNU::None, _) => return false,
-        (_, WNU::None) => return false,
-        _ => return false,
+        (WNU::None, _) => false,
+        (_, WNU::None) => false,
+        _ => false,
     }
 }
 
-fn wnu_elem<T: Eq + Clone + Hash + Debug>(x: &Vec<T>) -> WNU<T> {
+fn wnu_elem<T: Eq + Clone + Hash + Debug>(x: &[T]) -> WNU<T> {
     // (elem, frequency of elem)
     let elem_freq = x.iter().fold(HashMap::<T, usize>::new(), |mut m, y| {
         *m.entry(y.clone()).or_default() += 1;
@@ -118,43 +119,40 @@ fn wnu_elem<T: Eq + Clone + Hash + Debug>(x: &Vec<T>) -> WNU<T> {
 
 /// f(r,a,r,e) = f(a,r,e,a)
 #[allow(dead_code)]
-fn siggers_p<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
-    assert!(x.len() == 4 && y.len() == 4, "length must be equal to 4!");
-    let r = x[1] == y[0] && x[1] == y[2];
-    let a = x[0] == x[3] && x[0] == y[1];
-    let e = x[2] == y[3];
+fn siggers_p<T: Eq>(v0: &[T], v1: &[T]) -> bool {
+    assert!(v0.len() == 4 && v1.len() == 4, "length must be equal to 4!");
+    let r = v0[1] == v1[0] && v0[1] == v1[2];
+    let a = v0[0] == v0[3] && v0[0] == v1[1];
+    let e = v0[2] == v1[3];
     r && a && e
 }
 
 /// f(x,y) = f(y,x)
 #[allow(dead_code)]
-fn commutative_p<T: Eq>(a: &Vec<T>, b: &Vec<T>) -> bool {
+fn commutative_p<T: Eq>(a: &[T], b: &[T]) -> bool {
     assert!(a.len() == 2 && b.len() == 2, "length must be equal to 2!");
     a[0] == b[1] && a[1] == b[0]
 }
 
 /// f(x,x,y) = f(x,y,x) = f(y,x,x) = x
 #[allow(dead_code)]
-fn majority_p<T: Eq + Clone>(a: &Vec<T>, b: &Vec<T>) -> bool {
+fn majority_p<T: Eq + Clone>(a: &[T], b: &[T]) -> bool {
     assert!(a.len() == 3 && b.len() == 3, "length must be equal to 3!");
     let v = major_elem(a);
     let w = major_elem(b);
-    v.clone()
-        .and(w)
-        .and_then(|x| Some(x == v.unwrap()))
-        .unwrap_or(false)
+    v.clone().and(w).map(|x| x == v.unwrap()).unwrap_or(false)
 }
 
 /// Returns an element if it occurs more often than all others, None otherwise.
-fn major_elem<T: Eq + Clone>(x: &Vec<T>) -> Option<T> {
+fn major_elem<T: Eq + Clone>(x: &[T]) -> Option<T> {
     if x[0] == x[1] {
-        return Some(x[0].clone());
+        Some(x[0].clone())
     } else if x[1] == x[2] {
-        return Some(x[1].clone());
+        Some(x[1].clone())
     } else if x[2] == x[0] {
-        return Some(x[2].clone());
+        Some(x[2].clone())
     } else {
-        return None;
+        None
     }
 }
 
@@ -211,7 +209,7 @@ where
 #[allow(missing_debug_implementations)]
 pub struct PolymorphismFinder {
     arity: Arity,
-    identity: Option<fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>>,
+    identity: Option<Identity>,
     conservative: bool,
     idempotent: bool,
     majority: bool,
@@ -273,7 +271,7 @@ impl PolymorphismFinder {
         let mut domains = Domains::<Vec<u32>, u32>::new();
 
         if let Some(p) = self.identity {
-            let vecs = p(&self.arity, g.vertices().collect::<Vec<_>>().len() as u32);
+            let vecs = p(&self.arity, g.vertices().count() as u32);
             for vec in vecs {
                 for i in 1..vec.len() {
                     product.contract_vertices(&vec[0], &vec[i]);
@@ -285,14 +283,8 @@ impl PolymorphismFinder {
                 }
             }
         }
-        println!(
-            "Vertices in indicator: {:?}",
-            &product.vertices().collect::<Vec<_>>().len()
-        );
-        println!(
-            "Edges in indicator: {:?}",
-            &product.edges().collect::<Vec<_>>().len()
-        );
+        println!("Vertices in indicator: {:?}", &product.vertices().count());
+        println!("Edges in indicator: {:?}", &product.edges().count());
 
         if self.conservative {
             for vec in product.vertices() {
@@ -304,7 +296,7 @@ impl PolymorphismFinder {
             for vec in product.vertices() {
                 if is_all_same(&vec) {
                     let mut s = Set::new();
-                    s.insert(vec[0].clone());
+                    s.insert(vec[0]);
                     domains.insert(vec.clone(), s);
                 }
             }
@@ -329,12 +321,10 @@ impl PolymorphismFinder {
             } else {
                 None
             }
+        } else if let Some(map) = search_precolour(&product, g, domains, algorithm) {
+            Some(Polymorphism { map })
         } else {
-            if let Some(map) = search_precolour(&product, g, domains, algorithm) {
-                return Some(Polymorphism { map });
-            } else {
-                None
-            }
+            None
         }
     }
 }
@@ -351,10 +341,7 @@ impl PolymorphismFinder {
         }
         if let Some(p) = self.identity {
             // product.contract_if(p);
-            let vecs = p(
-                &self.arity,
-                list.vertices().collect::<Vec<_>>().len() as u32,
-            );
+            let vecs = p(&self.arity, list.vertices().count() as u32);
             for vec in vecs {
                 for i in 1..vec.len() {
                     product.contract_vertices(&vec[0], &vec[i]);
@@ -384,14 +371,14 @@ impl PolymorphismFinder {
             for vec in indicator.vertices() {
                 if is_all_same(&vec) {
                     let mut s = Set::new();
-                    s.insert(vec[0].clone());
+                    s.insert(vec[0]);
                     domains.insert(vec.clone(), s);
                 }
             }
         }
 
         if let Some(map) = search_precolour(&indicator, &list, domains, algorithm) {
-            return Some(Polymorphism { map });
+            Some(Polymorphism { map })
         } else {
             None
         }

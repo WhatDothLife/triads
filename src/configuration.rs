@@ -50,9 +50,13 @@ pub struct TripolysOptions {
 
 #[derive(Debug)]
 pub enum OptionsError {
+    /// The given range is empty
     EmptyRange,
+    /// No polymorphism registered with that name
     PolymorphismNotFound,
+    /// No algorithm registered with that name
     AlgorithmNotFound,
+    /// Unable to parse triad from argument
     FlawedTriad,
 }
 
@@ -226,7 +230,7 @@ impl TripolysOptions {
         } else {
             None
         };
-        let range = if let Some(s) = nodes.as_ref().or(length.as_ref()) {
+        let range = if let Some(s) = nodes.as_ref().or_else(|| length.as_ref()) {
             Some(parse_range(s)?)
         } else {
             None
@@ -351,9 +355,7 @@ impl PolymorphismRegistry {
             "siggers" => Ok(PolymorphismKind::Siggers),
             "3/4wnu" => Ok(PolymorphismKind::WNU34),
             "3wnu" => Ok(PolymorphismKind::WNU3),
-            &_ => {
-                return Err(OptionsError::PolymorphismNotFound);
-            }
+            &_ => Err(OptionsError::PolymorphismNotFound),
         }
     }
 }

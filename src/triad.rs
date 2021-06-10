@@ -1,5 +1,5 @@
 use std::{
-    cmp::min,
+    cmp::{min, Reverse},
     collections::HashSet,
     convert::TryFrom,
     fmt, fs,
@@ -26,7 +26,7 @@ use super::consistency::{ac3, ac3_precolour, Domains};
 /// Note that we don't restrict the triad to have exactly three arms.
 /// Instead there must be at most three arms, and every triad that has less
 /// can be considered a "partial triad".
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Default)]
 pub struct Triad(Vec<String>);
 
 impl Triad {
@@ -180,13 +180,12 @@ impl From<&Triad> for AdjacencyList<u32> {
                     } else {
                         list.add_edge(&0, &node_id);
                     }
+                } else if v == '1' {
+                    list.add_edge(&node_id, &(node_id - 1));
                 } else {
-                    if v == '1' {
-                        list.add_edge(&node_id, &(node_id - 1));
-                    } else {
-                        list.add_edge(&(node_id - 1), &node_id);
-                    }
+                    list.add_edge(&(node_id - 1), &node_id);
                 }
+
                 node_id += 1;
             }
         }
@@ -217,7 +216,7 @@ impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
             }
         }
 
-        triad_vec.sort_by(|a, b| b.len().cmp(&a.len()));
+        triad_vec.sort_by_key(|b| Reverse(b.len()));
         if let Some(arm1) = triad_vec.get(0) {
             if let Some(arm2) = triad_vec.get(1) {
                 if let Some(arm3) = triad_vec.get(2) {
@@ -313,24 +312,23 @@ impl Cache {
     }
 
     fn cached(&self, a: (u32, usize), b: (u32, usize), c: (u32, usize)) -> bool {
-        if self.pairs.contains(&(a, b)) {
-            return true;
-        } else if self.pairs.contains(&(a, c)) {
-            return true;
-        } else if self.pairs.contains(&(b, c)) {
+        if self.pairs.contains(&(a, b))
+            || self.pairs.contains(&(a, c))
+            || self.pairs.contains(&(b, c))
+        {
             return true;
         }
         false
     }
 
-    fn populate_to(&mut self, num: u32, arm_list: &Vec<Vec<String>>, cons: &Constraint) {
+    fn populate_to(&mut self, num: u32, arm_list: &[Vec<String>], cons: &Constraint) {
         for i in self.counter..=num {
             self.populate(i, arm_list, cons);
         }
         self.counter = num;
     }
 
-    fn populate(&mut self, num: u32, arm_list: &Vec<Vec<String>>, cons: &Constraint) {
+    fn populate(&mut self, num: u32, arm_list: &[Vec<String>], cons: &Constraint) {
         let path = format!("{}/nodes/pairs_{}", Globals::get().data, num);
 
         if let Ok(pairs_vec) = FileParser::read_pairs(&path) {
@@ -503,12 +501,7 @@ fn cores(num: u32, cons: &Constraint) -> Vec<Triad> {
     cores_range(num..=num, cons).into_iter().flatten().collect()
 }
 
-fn _cores(
-    arm_list: &Vec<Vec<String>>,
-    cache: &mut Cache,
-    num: u32,
-    cons: &Constraint,
-) -> Vec<Triad> {
+fn _cores(arm_list: &[Vec<String>], cache: &mut Cache, num: u32, cons: &Constraint) -> Vec<Triad> {
     cache.populate_to(num, &arm_list, &cons);
 
     let triadlist = Mutex::new(Some(Vec::<Triad>::new()));
@@ -528,7 +521,7 @@ fn _cores(
                         let mut count = 0;
 
                         for arm in [arm1, arm2, arm3].iter() {
-                            if arm.chars().next().unwrap() == '1' {
+                            if arm.starts_with('1') {
                                 count += 1;
                             }
                         }

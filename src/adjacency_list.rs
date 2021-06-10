@@ -10,7 +10,7 @@ use std::{
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Set<T: Eq> {
     items: Vec<T>,
 }
@@ -156,7 +156,7 @@ impl<T: Eq> FromIterator<T> for Set<T> {
 /// around a HashMap. For each vertex the HashMap contains an ordered pair, the
 /// adjacency lists, where the first entry and second entry contain all
 /// successors and predecessors, respectively.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AdjacencyList<T: Eq + Hash + Clone> {
     // Vertex -> (Out-Edges, In-Edges)
     adjacency_list: HashMap<T, (Set<T>, Set<T>)>,
@@ -225,7 +225,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
                 self.adjacency_list.get_mut(u).unwrap().1.remove(x);
             }
 
-            return Some((out_edges, in_edges));
+            Some((out_edges, in_edges))
         } else {
             None
         }
@@ -402,7 +402,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     ///
     /// assert_eq!(vertices.len(), 4);
     /// ```
-    pub fn edges<'a>(&'a self) -> impl Iterator<Item = (T, T)> + 'a {
+    pub fn edges(&self) -> impl Iterator<Item = (T, T)> {
         self.vertices()
             .map(|u| {
                 self.adjacency_list
@@ -515,7 +515,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         let mut m1 = self.adjacency_list.clone();
         let m2 = l.adjacency_list.clone();
 
-        m1.extend(m2.into_iter().map(|(k, v)| (k.clone(), v.clone())));
+        m1.extend(m2.into_iter());
         AdjacencyList { adjacency_list: m1 }
     }
 

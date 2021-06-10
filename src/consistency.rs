@@ -234,7 +234,7 @@ where
                 let mut map = e.clone();
                 map.insert(k.clone(), set);
 
-                if let None = ac3_precolour(g0, g1, map) {
+                if ac3_precolour(g0, g1, map).is_none() {
                     // TODO this looks wrong
                     v.clone().remove(&u);
                     e.insert(k.clone(), v.clone());
@@ -273,12 +273,7 @@ where
     V1: Eq + Clone + Hash,
     A: LocalConsistency<V0, V1>,
 {
-    let domains_ac = if let Some(v) = ac(g0, g1, domains) {
-        v
-    } else {
-        return None;
-    };
-
+    let domains_ac = ac(g0, g1, domains)?;
     let iter = domains_ac.clone().into_iter();
 
     if let Some(map) = search_rec(g0, g1, domains_ac, iter, ac) {
@@ -288,7 +283,7 @@ where
                 .collect(),
         )
     } else {
-        return None;
+        None
     }
 }
 
@@ -324,7 +319,7 @@ where
             return search_rec(g0, g1, map, iter, ac);
         }
     }
-    return None;
+    None
 }
 
 pub fn find_precolour<V0, V1, A>(
@@ -338,11 +333,7 @@ where
     V1: Eq + Clone + Hash,
     A: LocalConsistency<V0, V1>,
 {
-    let mut domains = if let Some(v) = algo(g0, g1, domains) {
-        v
-    } else {
-        return None;
-    };
+    let mut domains = algo(g0, g1, domains)?;
 
     for v0 in g0.vertices() {
         let dom = domains.get_domain(&v0).unwrap();
@@ -528,7 +519,7 @@ where
     sac_opt_precolour(g0, g1, Domains::from_lists(g0, g1))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Domains<V0: Eq + Hash, V1: Eq> {
     domains: HashMap<V0, Set<V1>>,
 }
