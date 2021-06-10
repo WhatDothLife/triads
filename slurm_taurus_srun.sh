@@ -8,9 +8,9 @@
 #SBATCH --mem-per-cpu=2048M   # memory per CPU core
 #SBATCH --output=/scratch/ws/0/s8179597-triads/jakub_sig.output
 #SBATCH -J "jakub_sig"   # job name
-#SBATCH -A p_graphen
+#SBATCH -A p_triads
 
-srun ./target/release/triads \
+srun ./target/release/tripolys \
 	--data /scratch/ws/0/s8179597-triads/data \
 	--triad 01001111,0110000,101000 \
 	--polymorphism siggers
