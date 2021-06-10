@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
-use crate::tripolys::adjacency_list::{AdjacencyList, Set};
+use crate::adjacency_list::{AdjacencyList, Set};
 
 pub trait LocalConsistency<V0: Eq + Clone + Hash, V1: Eq + Clone + Hash>:
     Fn(&AdjacencyList<V0>, &AdjacencyList<V1>, Domains<V0, V1>) -> Option<Domains<V0, V1>>
@@ -186,11 +186,9 @@ where
                     is_possible = true;
                     break;
                 }
-            } else {
-                if g1.has_edge(vx, vy) {
-                    is_possible = true;
-                    break;
-                }
+            } else if g1.has_edge(vx, vy) {
+                is_possible = true;
+                break;
             }
         }
 
@@ -213,7 +211,7 @@ where
 pub fn sac1_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    mut f: Domains<V0, V1>,
+    f: Domains<V0, V1>,
 ) -> Option<Domains<V0, V1>>
 where
     V0: Eq + Clone + Hash,
@@ -237,6 +235,7 @@ where
                 map.insert(k.clone(), set);
 
                 if let None = ac3_precolour(g0, g1, map) {
+                    // TODO this looks wrong
                     v.clone().remove(&u);
                     e.insert(k.clone(), v.clone());
                     changed = true;
@@ -431,35 +430,12 @@ where
     V1: Eq + Clone + Hash + Debug,
 {
     for (a, b) in lists.get(&(x.clone(), y.clone())).unwrap().clone().iter() {
-        if !is_possible(x, y, z, a, b, lists) {
-            lists
-                .get_mut(&(x.clone(), y.clone()))
-                .unwrap()
-                .remove(&(a.clone(), b.clone()));
-            return true;
-        }
-    }
-    false
-}
-
-// Implemented as separate function so that we can return early
-fn is_possible<V0, V1>(
-    x: &V0,
-    y: &V0,
-    z: &V0,
-    a: &V1,
-    b: &V1,
-    lists: &mut HashMap<(V0, V0), Set<(V1, V1)>>,
-) -> bool
-where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-{
-    for (u, v) in lists.get(&(x.clone(), z.clone())).unwrap().iter() {
-        if a == u {
-            for (c, d) in lists.get(&(y.clone(), z.clone())).unwrap().iter() {
-                if c == b && d == v {
-                    return true;
+        'middle: for (u, v) in lists.get(&(x.clone(), z.clone())).unwrap().iter() {
+            if a == u {
+                for (c, d) in lists.get(&(y.clone(), z.clone())).unwrap().iter() {
+                    if c == b && d == v {
+                        break 'middle;
+                    }
                 }
             }
         }

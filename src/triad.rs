@@ -9,8 +9,10 @@ use std::{
     sync::Mutex,
 };
 
-use crate::tripolys::adjacency_list::{AdjacencyList, Set};
-use crate::Globals;
+use crate::{
+    adjacency_list::{AdjacencyList, Set},
+    configuration::Globals,
+};
 use rayon::prelude::*;
 
 use super::consistency::{ac3, ac3_precolour, Domains};
@@ -625,6 +627,7 @@ impl FileParser {
         Ok(pairs)
     }
 
+    #[allow(dead_code)]
     fn read_arms(len: u32) -> Result<Vec<String>, io::Error> {
         let path = format!("{}/arms/arms{}", Globals::get().data, len);
         let file = fs::read(&path)?;

@@ -4,12 +4,12 @@ use std::{
     hash::Hash,
 };
 
-use crate::tripolys::consistency::{ac3_precolour, find_precolour, LocalConsistency};
-use crate::tripolys::{adjacency_list::AdjacencyList, consistency::Domains};
+use crate::consistency::{ac3_precolour, find_precolour, LocalConsistency};
+use crate::{adjacency_list::AdjacencyList, consistency::Domains};
 
 use super::{
     adjacency_list::Set,
-    consistency::{sac_opt_precolour, search_precolour},
+    consistency::{sac1_precolour, sac_opt_precolour, search_precolour},
     triad::{level, Triad},
 };
 
@@ -117,6 +117,7 @@ fn wnu_elem<T: Eq + Clone + Hash + Debug>(x: &Vec<T>) -> WNU<T> {
 }
 
 /// f(r,a,r,e) = f(a,r,e,a)
+#[allow(dead_code)]
 fn siggers_p<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
     assert!(x.len() == 4 && y.len() == 4, "length must be equal to 4!");
     let r = x[1] == y[0] && x[1] == y[2];
@@ -126,12 +127,14 @@ fn siggers_p<T: Eq>(x: &Vec<T>, y: &Vec<T>) -> bool {
 }
 
 /// f(x,y) = f(y,x)
+#[allow(dead_code)]
 fn commutative_p<T: Eq>(a: &Vec<T>, b: &Vec<T>) -> bool {
     assert!(a.len() == 2 && b.len() == 2, "length must be equal to 2!");
     a[0] == b[1] && a[1] == b[0]
 }
 
 /// f(x,x,y) = f(x,y,x) = f(y,x,x) = x
+#[allow(dead_code)]
 fn majority_p<T: Eq + Clone>(a: &Vec<T>, b: &Vec<T>) -> bool {
     assert!(a.len() == 3 && b.len() == 3, "length must be equal to 3!");
     let v = major_elem(a);
@@ -337,12 +340,7 @@ impl PolymorphismFinder {
 }
 
 impl PolymorphismFinder {
-    pub fn find_commutative<A>(
-        &self,
-        triad: &Triad,
-        algorithm: &A,
-        linear: bool,
-    ) -> Option<Polymorphism<u32>>
+    pub fn find_commutative<A>(&self, triad: &Triad, algorithm: &A) -> Option<Polymorphism<u32>>
     where
         A: LocalConsistency<Vec<u32>, u32>,
     {
@@ -422,11 +420,11 @@ pub enum PolymorphismKind {
 impl fmt::Display for PolymorphismKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PolymorphismKind::Commutative => write!(f, "{}", "commutative"),
-            PolymorphismKind::Majority => write!(f, "{}", "majority"),
-            PolymorphismKind::Siggers => write!(f, "{}", "siggers"),
-            PolymorphismKind::WNU34 => write!(f, "{}", "3/4 wnu"),
-            PolymorphismKind::WNU3 => write!(f, "{}", "3 wnu"),
+            PolymorphismKind::Commutative => write!(f, "commutative"),
+            PolymorphismKind::Majority => write!(f, "majority"),
+            PolymorphismKind::Siggers => write!(f, "siggers"),
+            PolymorphismKind::WNU34 => write!(f, "3/4 wnu"),
+            PolymorphismKind::WNU3 => write!(f, "3 wnu"),
         }
     }
 }
@@ -437,13 +435,13 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
     match kind {
         PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
             .identity(commutative)
-            .find_commutative(triad, &ac3_precolour, false),
+            .find_commutative(triad, &ac3_precolour),
 
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
             .majority(true)
             .linear(true)
-            .find(&triad.into(), &sac_opt_precolour),
+            .find(&triad.into(), &sac1_precolour),
 
         PolymorphismKind::Siggers => find_polymorphism(triad, &PolymorphismKind::Commutative)
             .or_else(|| {

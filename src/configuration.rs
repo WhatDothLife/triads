@@ -12,11 +12,11 @@ use clap::{App, Arg};
 use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
-use crate::tripolys::consistency::{
-    ac1_precolour, ac3_precolour, sac1_precolour, LocalConsistency,
+use crate::{
+    consistency::{ac1_precolour, ac3_precolour, sac1_precolour, LocalConsistency},
+    polymorphism::PolymorphismKind,
+    triad::Triad,
 };
-use crate::tripolys::polymorphism::PolymorphismKind;
-use crate::tripolys::triad::Triad;
 
 /// A set of options for tripolys
 pub struct TripolysOptions {

@@ -11,25 +11,18 @@
 //! a tree which has a single vertex of degree 3 and otherwise only vertices of
 //! degree 2 and 1.
 
-#![deny(clippy::missing_docs)]
-// #![deny(clippy::missing_doc_code_examples)]
-#![deny(clippy::all)]
-#![deny(clippy::missing_debug_implementations)]
-
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     fs::{File, OpenOptions},
     io::{self, Write},
-    str::FromStr,
 };
-use tripolys::{adjacency_list::AdjacencyList, triad::Triad};
-
-mod tripolys;
-
-use crate::tripolys::configuration::{Constraint, Globals, Run, TripolysOptions};
-use crate::tripolys::triad::{cores_length_range, cores_nodes_range};
-use crate::tripolys::{consistency::sac_opt, polymorphism::find_polymorphism};
+use tripolys::{
+    adjacency_list::AdjacencyList,
+    configuration::{Constraint, Globals, Run, TripolysOptions},
+    polymorphism::find_polymorphism,
+    triad::{cores_length_range, cores_nodes_range},
+};
 
 /// Print error message to stderr and terminate
 fn error(message: &str) -> ! {
@@ -133,23 +126,23 @@ fn run(options: TripolysOptions) -> io::Result<()> {
 }
 
 fn main() {
-    // let options = TripolysOptions::parse();
+    let options = TripolysOptions::parse();
 
-    // let res = match options {
-    //     Ok(opts) => run(opts),
-    //     Err(ref e) => error(&e.to_string()),
-    // };
+    let res = match options {
+        Ok(opts) => run(opts),
+        Err(ref e) => error(&e.to_string()),
+    };
 
-    // match res {
-    //     Ok(_) => {}
-    //     Err(e) => error(&e.to_string()),
-    // }
+    match res {
+        Ok(_) => {}
+        Err(e) => error(&e.to_string()),
+    }
 
-    let t = Triad::from_str("0111,00,1").unwrap();
-    let h: AdjacencyList<u32> = (&t).into();
-    let g = h.power(3);
+    // let t = Triad::from_str("0111,00,1").unwrap();
+    // let h: AdjacencyList<u32> = (&t).into();
+    // let g = h.power(3);
 
-    let sac = sac_opt(&g, &h);
+    // let sac = sac_opt(&g, &h);
     // println!("{:?}", &sac);
 
     // println!("SAC1 start!");
