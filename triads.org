@@ -13,6 +13,272 @@ $f(v_1,...,v_n) \in \{v_1,...,v_n\}$
 
 ** Code
 #+begin_src rustic
+fn ac_init<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: &mut HashMap<V0, Set<V1>>,
+    m: &mut HashMap<V0, HashSet<V1>>,
+    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
+    s_ac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_ac: &mut Vec<(V0, V1)>,
+) where
+    V0: Eq + Hash + Clone,
+    V1: Eq + Hash + Clone,
+{
+    let edges = g0.edges();
+
+    for (u0, v0) in edges {
+        for u1 in f.get(&u0).unwrap().clone().iter() {
+            let mut total = 0;
+            for v1 in f.get(&v0).unwrap().iter() {
+                if g1.has_edge(u1, v1) {
+                    total += 1;
+                    if let Some(entry) = s_ac.get_mut(&(v0.clone(), v1.clone())) {
+                        entry.push((u0.clone(), u1.clone()));
+                    } else {
+                        s_ac.insert((v0.clone(), v1.clone()), vec![(u0.clone(), u1.clone())]);
+                    }
+                }
+            }
+            if total == 0 {
+                f.get_mut(&u0).unwrap().remove(&u1);
+                if let Some(entry) = m.get_mut(&u0) {
+                    entry.insert(u1.clone());
+                } else {
+                    let mut set = HashSet::<V1>::new();
+                    set.insert(u1.clone());
+                    m.insert(u0.clone(), set);
+                }
+                list_ac.push((u0.clone(), u1.clone()));
+            } else {
+                if let Some(entry) = counter.get_mut(&(u0.clone(), v0.clone())) {
+                    entry.insert(u1.clone(), total);
+                } else {
+                    let mut map = HashMap::<V1, u32>::new();
+                    map.insert(u1.clone(), total);
+                    counter.insert((u0.clone(), v0.clone()), map);
+                }
+            }
+        }
+    }
+}
+
+fn ac_prune<V0, V1>(
+    f: &mut HashMap<V0, Set<V1>>,
+    m: &mut HashMap<V0, HashSet<V1>>,
+    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
+    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_ac: &mut Vec<(V0, V1)>,
+    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_sac: &mut Vec<(V0, V1)>,
+) where
+    V0: Eq + Hash + Clone + Debug,
+    V1: Eq + Hash + Clone + Debug,
+{
+    while !list_ac.is_empty() {
+        let (j, b) = list_ac.pop().unwrap();
+
+        if let Some(entry) = s_ac.get(&(j.clone(), b)) {
+            for (i, a) in entry.iter() {
+                let count = counter
+                    .get_mut(&(i.clone(), j.clone()))
+                    .unwrap()
+                    .get_mut(&a)
+                    .unwrap();
+                *count -= 1;
+
+                if *count == 0 && !m.get(&i).unwrap().contains(&a) {
+                    f.get_mut(&i).unwrap().remove(a);
+
+                    m.get_mut(&i).unwrap().insert(a.clone());
+
+                    list_ac.push((i.clone(), a.clone()));
+
+                    // println!("s_ac: {:?}", &s_ac);
+                    // println!("s_sac: {:?}", &s_sac);
+                    if let Some(entry) = s_sac.get(&(i.clone(), a.clone())) {
+                        for (k, c) in entry.iter() {
+                            list_sac.push((k.clone(), c.clone()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn sac_init<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: &mut HashMap<V0, Set<V1>>,
+    m: &mut HashMap<V0, HashSet<V1>>,
+    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
+    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
+    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_sac: &mut Vec<(V0, V1)>,
+) where
+    V0: Eq + Hash + Clone + Debug,
+    V1: Eq + Hash + Clone + Debug,
+{
+    for i in g0.vertices() {
+        for a in f.get(&i).unwrap().clone().iter() {
+            let mut set = Set::new();
+            set.insert(a.clone());
+
+            let mut d = f.clone();
+            d.insert(i.clone(), set);
+
+            if let Some(_) = ac3_precolour(g0, g1, d.clone()) {
+                for (j, l) in d.iter() {
+                    for b in l.iter() {
+                        // let vec = s_sac.get_mut(&(j.clone(), b.clone())).unwrap();
+                        // vec.push((i.clone(), a.clone()));
+                        if let Some(entry) = s_sac.get_mut(&(j.clone(), b.clone())) {
+                            entry.push((i.clone(), a.clone()));
+                        } else {
+                            s_sac.insert((j.clone(), b.clone()), vec![(i.clone(), a.clone())]);
+                        }
+                    }
+                }
+            } else {
+                f.get_mut(&i).unwrap().remove(a);
+
+                if let Some(entry) = m.get_mut(&i) {
+                    entry.insert(a.clone());
+                } else {
+                    let mut entry = HashSet::<V1>::new();
+                    entry.insert(a.clone());
+                    m.insert(i.clone(), entry);
+                }
+
+                let mut list = vec![(i.clone(), a.clone())];
+                ac_prune(f, m, counter, s_ac, &mut list, s_sac, list_sac);
+
+                if let Some(entry) = s_sac.get(&(i.clone(), a.clone())) {
+                    for (k, c) in entry.iter() {
+                        list_sac.push((k.clone(), c.clone()));
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn sac_prune<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: &mut HashMap<V0, Set<V1>>,
+    m: &mut HashMap<V0, HashSet<V1>>,
+    counter: &mut HashMap<(V0, V0), HashMap<V1, u32>>,
+    s_ac: &HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_ac: &mut Vec<(V0, V1)>,
+    s_sac: &mut HashMap<(V0, V1), Vec<(V0, V1)>>,
+    list_sac: &mut Vec<(V0, V1)>,
+) where
+    V0: Eq + Hash + Clone + Debug,
+    V1: Eq + Hash + Clone + Debug,
+{
+    while !list_sac.is_empty() {
+        let (u0, u1) = list_sac.pop().unwrap();
+        if f.get(&u0).unwrap().contains(&u1) {
+            let mut set = Set::new();
+            set.insert(u1.clone());
+
+            let mut f2 = f.clone();
+            f2.insert(u0.clone(), set);
+
+            if let None = ac3_precolour(g0, g1, f.clone()) {
+                f.get_mut(&u0).unwrap().remove(&u1);
+                m.get_mut(&u0).unwrap().insert(u1.clone());
+                ac_prune(f, m, counter, s_ac, list_ac, s_sac, list_sac);
+                for elem in s_sac.get(&(u0, u1)).unwrap().iter() {
+                    list_sac.push(elem.clone());
+                }
+            }
+        }
+    }
+}
+
+pub fn sac2_precolour<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    mut f: HashMap<V0, Set<V1>>,
+) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
+{
+    let mut m = HashMap::<V0, HashSet<V1>>::new();
+    let mut counter = HashMap::<(V0, V0), HashMap<V1, u32>>::new();
+
+    let mut s_ac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
+    let mut list_ac = Vec::<(V0, V1)>::new();
+    let mut s_sac = HashMap::<(V0, V1), Vec<(V0, V1)>>::new();
+    let mut list_sac = Vec::<(V0, V1)>::new();
+
+    for v0 in g0.vertices() {
+        if !f.contains_key(&v0) {
+            f.insert(v0.clone(), g1.vertices().cloned().collect::<Set<_>>());
+        }
+        m.insert(v0.clone(), HashSet::<V1>::new());
+    }
+
+    println!("ac_init");
+    ac_init(
+        g0,
+        g1,
+        &mut f,
+        &mut m,
+        &mut counter,
+        &mut s_ac,
+        &mut list_ac,
+    );
+    println!("ac_prune");
+    ac_prune(
+        &mut f,
+        &mut m,
+        &mut counter,
+        &s_ac,
+        &mut list_ac,
+        &mut s_sac,
+        &mut list_sac,
+    );
+    println!("sac_init");
+    sac_init(
+        g0,
+        g1,
+        &mut f,
+        &mut m,
+        &mut counter,
+        &s_ac,
+        &mut s_sac,
+        &mut list_sac,
+    );
+    println!("sac_prune");
+    sac_prune(
+        g0,
+        g1,
+        &mut f,
+        &mut m,
+        &mut counter,
+        &s_ac,
+        &mut list_ac,
+        &mut s_sac,
+        &mut list_sac,
+    );
+    Some(f)
+}
+
+/// A modification of `sac2_precolour` that is initialized with a list of all nodes
+/// of g1 for each node in g0.
+pub fn sac2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<HashMap<V0, Set<V1>>>
+where
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
+{
+    sac2_precolour(g0, g1, HashMap::new())
+}
+
 // TODO So far this assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
 /// Parses a graph from dot format into an `AdjacencyList`.
 pub fn from_dot(dot: &str) -> AdjacencyList<Vec<u32>> {
@@ -170,18 +436,6 @@ impl<T: Eq + Hash + Clone + FromStr> AdjacencyList<T> {
 #+end_src
 
 * TODO
-** DONE Binary Symmetric
-When testing for polymorphisms of triads T , not all of the vertices of the
-indicator structure need to be generated; in particular, if we are looking for
-binary polymorphisms of T , it suffices to consider vertices (u, v) of T where u
-and v are on the same level.
-
-** DONE ternary weak nu operations
-Implement a test for ternary weak nu operations. Only for those core triads that don’t
-have a binary symmetric polymorphism, run this test. Feed those into the tests from
-item 3 and 4. They should all have a 3-4 wean nu otherwise we found a counterexample
-to Bulin’s conjecture.
-
 ** TODO Table
 Run the above for a larger and larger number of vertices n. Make a table which contains
 for each of the steps above the number of triads that passes the respective test, and
@@ -192,6 +446,11 @@ triads up to a certain size n.
 ** TODO Idempotence
 Do all the above, but restrict to idempotent polymorphisms. In this case, we no longer
 restrict our attention to core triads, but consider all triads on a given number of vertices.
+
+** TODO Polymorphism::tryfrom(Domains)
+** TODO Document every function
+** TODO Activate lints
+
 * Results
 | Triad                   | AC3     | SAC2       | Majority? |
 |-------------------------+---------+------------+-----------|
@@ -202,3 +461,10 @@ restrict our attention to core triads, but consider all triads on a given number
 | 01100,01110,10100       | 1:04 m  | ?          | j         |
 | 10110000,1001111,01011  | 13:42 m | ?          | j         |
 | 10110000,1001111,010111 | 3 s     | ?          | n         |
+
+* Micha
+- Domains Data Structure
+- When should you use Set?
+
+* Manuel
+- Top-level parallelisierung vs. SAC parallelisierung
