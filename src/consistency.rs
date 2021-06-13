@@ -119,11 +119,11 @@ where
     V0: Eq + Clone + Hash + Debug,
     V1: Eq + Clone + Hash + Debug,
 {
-    // for v0 in g0.vertices() {
-    //     if !f.contains_key(&v0) {
-    //         f.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
-    //     }
-    // }
+    for v0 in g0.vertices() {
+        if !f.contains_key(&v0) {
+            f.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
+        }
+    }
 
     let edges = g0.edges();
     let mut worklist = HashSet::<(V0, V0, bool)>::new();

@@ -439,17 +439,14 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
             .majority(true)
-            .linear(true)
-            .find(&triad.into(), &sac1_precolour),
+            .find(&triad.into(), &ac3_precolour),
 
         PolymorphismKind::Siggers => PolymorphismFinder::new(Arity::Single(4))
             .identity(siggers)
-            .linear(true)
             .find(&triad.into(), &ac3_precolour),
 
         PolymorphismKind::WNU34 => PolymorphismFinder::new(Arity::Dual(3, 4))
             .identity(wnu)
-            .linear(true)
             .find(&triad.into(), &ac3_precolour),
 
         PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))

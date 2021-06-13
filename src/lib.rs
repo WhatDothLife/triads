@@ -11,20 +11,21 @@
 //! a tree which has a single vertex of degree 3 and otherwise only vertices of
 //! degree 2 and 1.
 
-#![deny(missing_docs)]
-#![deny(missing_doc_code_examples)]
-#![deny(missing_debug_implementations)]
+// #![deny(missing_docs)]
+// #![deny(missing_doc_code_examples)]
+// #![deny(missing_debug_implementations)]
 #![feature(array_value_iter)]
-#![warn(
-    clippy::all,
-    clippy::restriction,
-    clippy::pedantic,
-    clippy::nursery,
-    clippy::cargo
-)]
+// #![warn(
+//     clippy::all,
+//     clippy::restriction,
+//     clippy::pedantic,
+//     clippy::nursery,
+//     clippy::cargo
+// )]
 
 pub mod adjacency_list;
 pub mod configuration;
 pub mod consistency;
+pub mod metrics;
 pub mod polymorphism;
 pub mod triad;
