@@ -16,6 +16,8 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     fs::{File, OpenOptions},
     io::{self, Write},
+    sync::Mutex,
+    time::{Duration, Instant},
 };
 use tripolys::{
     adjacency_list::AdjacencyList,
@@ -90,7 +92,10 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                             constraint.identity(),
                             range.start() + i as u32
                         );
+                        let sum = Mutex::new(Duration::from_secs(0));
                         vec.par_iter().for_each(|triad| {
+                            let start = Instant::now();
+
                             if find_polymorphism(&triad, polymorphism).is_none() {
                                 let msg = format!(
                                     "\t✘ {} doesn't have a {} polymorphism!",
@@ -114,6 +119,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                                     }
                                 }
                             }
+                            *sum.lock().unwrap() += start.elapsed();
                         });
                     }
                 } else {
@@ -137,46 +143,4 @@ fn main() {
         Ok(_) => {}
         Err(e) => error(&e.to_string()),
     }
-
-    // let t = Triad::from_str("0111,00,1").unwrap();
-    // let h: AdjacencyList<u32> = (&t).into();
-    // let g = h.power(3);
-
-    // let sac = sac_opt(&g, &h);
-    // println!("{:?}", &sac);
-
-    // println!("SAC1 start!");
-    // let sac1_res = sac1(&g, &h).unwrap();
-    // println!("SAC1 finisched!");
-
-    // println!("SAC2 start!");
-    // let sac2_res = sac2(&g, &h).unwrap();
-    // println!("SAC2 finisched!");
-
-    // for (k, v) in sac1_res {
-    //     println!("k: {:?}", k);
-    //     println!("\t v: {:?}", v);
-    //     println!("\t v2: {:?}", sac2_res.get(&k).unwrap());
-    // }
-
-    // let mut s = Set::new();
-    // s.insert(1);
-
-    // let mut sac = sac_res.clone();
-    // sac.insert(vec![0, 2, 4], s).unwrap();
-
-    // let ac_res = ac3_precolour(&g, &h, sac);
-    // println!("ac_res: {:?}", &ac_res);
-
-    // for (k, d) in sac_res.clone() {
-    //     for v in d.iter() {
-    //         let mut s = Set::new();
-    //         s.insert(v.clone());
-
-    //         let mut sac = sac_res.clone();
-    //         sac.insert(k, s).unwrap();
-    //         let ac_res = ac3_precolour(&g, &g, sac);
-    //         println!("ac_res: {:?}", &ac_res);
-    //     }
-    // }
 }

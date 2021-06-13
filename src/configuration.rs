@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+#![allow(missing_debug_implementations)]
 use std::{
     fmt::{self, Display},
     ops::{Deref, RangeInclusive},

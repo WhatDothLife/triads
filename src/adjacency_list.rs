@@ -1,7 +1,7 @@
+//! An adjacency-list that represents a graph.
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
-    fs::File,
     hash::Hash,
     io::Write,
     iter::FromIterator,
@@ -10,6 +10,7 @@ use std::{
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
+/// A simple set implemented as a wrapper around Vec.
 #[derive(Clone, Debug, Default)]
 pub struct Set<T: Eq> {
     items: Vec<T>,
@@ -27,7 +28,7 @@ impl<T: Eq> Set<T> {
         Set { items: Vec::new() }
     }
 
-    /// Adds a value to the set.
+    /// Inserts a value in the set.
     ///
     /// If the set did not have this value present, `true` is returned.
     ///
@@ -166,9 +167,10 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// Creates an empty `AdjacencyList`.
     ///
     /// # Examples
+    /// use tripolys::adjacency_list::AdjacencyList;
     ///
     /// ```
-    /// let graph: Adjacency<i32> = Adjacency::new();
+    /// let graph: AdjacencyList<i32> = AdjacencyList::new();
     /// ```
     pub fn new() -> AdjacencyList<T> {
         AdjacencyList {
@@ -442,7 +444,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     /// graph.add_edge(&2, &3);
     /// graph.add_edge(&0, &3);
     ///
-    /// graph.contract_if(|x, y| x + 3 == y)
+    /// graph.contract_if(|x, y| x + 3 == y);
     ///
     /// let mut vertices = vec![];
     /// let mut edges = vec![];
@@ -575,6 +577,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
         }
     }
 
+    /// Returns the component that contains the vertex `v`.
     pub fn component(&self, v: &T) -> AdjacencyList<T> {
         let mut visited = HashSet::<T>::new();
         let mut graph = AdjacencyList::new();
@@ -624,11 +627,11 @@ impl<T: Clone + Eq + Hash + Debug> AdjacencyList<T> {
             .expect("Could not write the dot file!");
     }
 
-    // TODO remove me when not needed anymore
-    pub fn to_dot_file(&self, path: &str) {
-        let mut f = File::create(path).unwrap();
-        self.to_dot(&mut f);
-    }
+    // // TODO remove me when not needed anymore
+    // pub fn to_dot_file(&self, path: &str) {
+    //     let mut f = File::create(path).unwrap();
+    //     self.to_dot(&mut f);
+    // }
 }
 
 impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {

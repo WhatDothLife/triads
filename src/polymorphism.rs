@@ -1,20 +1,28 @@
+//! A homomorphism from H^k to H.
 use std::{
     collections::HashMap,
     fmt::{self, Debug},
     hash::Hash,
 };
 
-use crate::consistency::{ac3_precolour, find_precolour, LocalConsistency};
-use crate::{adjacency_list::AdjacencyList, consistency::Domains};
+use crate::{
+    adjacency_list::AdjacencyList,
+    consistency::{List, Lists},
+};
+use crate::{
+    consistency::{ac3_precolour, find_precolour, LocalConsistency},
+    list,
+};
 
 use super::{
-    adjacency_list::Set,
-    consistency::{sac1_precolour, sac_opt_precolour, search_precolour},
+    consistency::{sac1_precolour, search_precolour},
     triad::{level, Triad},
 };
 
 type Identity = fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>;
 
+/// Returns a set of sets of vertices that should be contracted when searching
+/// for wnu identity of arity `arity` of a graph with `num` nodes.
 pub fn wnu(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
     let mut vec = Vec::<Vec<Vec<u32>>>::new();
     for i in 0..num {
@@ -49,6 +57,8 @@ fn wnu_i(arity: u32, i: u32, num: u32) -> Vec<Vec<u32>> {
     v
 }
 
+/// Returns a set of sets of vertices that should be contracted when searching
+/// for commutative identity of arity `arity` of a graph with `num` nodes.
 pub fn commutative(_: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
     let mut vec = Vec::<Vec<Vec<u32>>>::new();
     for i in 0..num {
@@ -59,6 +69,8 @@ pub fn commutative(_: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
     vec
 }
 
+/// Returns a set of sets of vertices that should be contracted when searching
+/// for siggers identity of arity `arity` of a graph with `num` nodes.
 pub fn siggers(_: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
     let mut vec = Vec::<Vec<Vec<u32>>>::new();
     for i in 0..num {
@@ -217,6 +229,8 @@ pub struct PolymorphismFinder {
 }
 
 impl PolymorphismFinder {
+    /// Constructs a new PolymorphismFinder for a polymorphism with arity
+    /// `arity`.
     pub fn new(arity: Arity) -> PolymorphismFinder {
         PolymorphismFinder {
             arity,
@@ -228,37 +242,39 @@ impl PolymorphismFinder {
         }
     }
 
-    pub fn identity(
-        mut self,
-        indentity: fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>,
-    ) -> Self {
+    /// The identity the polymorphism should satisfy.
+    pub fn identity(mut self, indentity: Identity) -> Self {
         self.identity = Some(indentity);
         self
     }
 
-    /// Whether the polymorphism should be conservative
+    /// Whether the polymorphism should be conservative.
     pub fn conservative(mut self, c: bool) -> Self {
         self.conservative = c;
         self
     }
 
-    /// Whether the polymorphism should be idempotent
+    /// Whether the polymorphism should be idempotent.
     pub fn idempotent(mut self, i: bool) -> Self {
         self.idempotent = i;
         self
     }
 
-    /// Whether the polymorphism should be a majority operation
+    /// Whether the polymorphism should be a majority operation.
     pub fn majority(mut self, m: bool) -> Self {
         self.majority = m;
         self
     }
 
+    /// Whether the algorithm used for finding the polymorphism solves the CSP.
     pub fn linear(mut self, l: bool) -> Self {
         self.linear = l;
         self
     }
 
+    /// Tries to find the configured polymorphism for graph `g` by using
+    /// algorithm `algorithm` as a heuristic. Returns None, if there is no such
+    /// polymorphism, otherwise the polymorphism is returned.
     pub fn find<A>(&self, g: &AdjacencyList<u32>, algorithm: &A) -> Option<Polymorphism<u32>>
     where
         A: LocalConsistency<Vec<u32>, u32>,
@@ -268,7 +284,7 @@ impl PolymorphismFinder {
             Arity::Dual(k, l) => g.power(k).union(&g.power(l)),
         };
 
-        let mut domains = Domains::<Vec<u32>, u32>::new();
+        let mut domains = Lists::<Vec<u32>, u32>::new();
 
         if let Some(p) = self.identity {
             let vecs = p(&self.arity, g.vertices().count() as u32);
@@ -277,36 +293,22 @@ impl PolymorphismFinder {
                     product.contract_vertices(&vec[0], &vec[i]);
                 }
                 if self.majority {
-                    let mut s = Set::new();
-                    s.insert(vec[0][0]);
-                    domains.insert(vec[0].clone(), s);
+                    domains.insert(vec[0].clone(), list![vec[0][0]]);
                 }
             }
         }
-        println!("Vertices in indicator: {:?}", &product.vertices().count());
-        println!("Edges in indicator: {:?}", &product.edges().count());
 
         if self.conservative {
             for vec in product.vertices() {
-                domains.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
+                domains.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
             }
         }
 
         if self.idempotent {
             for vec in product.vertices() {
                 if is_all_same(&vec) {
-                    let mut s = Set::new();
-                    s.insert(vec[0]);
-                    domains.insert(vec.clone(), s);
+                    domains.insert(vec.clone(), list![vec[0]]);
                 }
-            }
-        }
-
-        // Vertices with no registered domain are assigned a list of all
-        // vertices of the graph g
-        for v0 in product.vertices() {
-            if !domains.contains_variable(&v0) {
-                domains.insert(v0.clone(), g.vertices().cloned().collect::<Set<_>>());
             }
         }
 
@@ -330,18 +332,20 @@ impl PolymorphismFinder {
 }
 
 impl PolymorphismFinder {
+    /// Optimization for commutative polymorphisms
+    /// TODO refactor me
     pub fn find_commutative<A>(&self, triad: &Triad, algorithm: &A) -> Option<Polymorphism<u32>>
     where
         A: LocalConsistency<Vec<u32>, u32>,
     {
-        let list: AdjacencyList<u32> = triad.into();
+        let g: AdjacencyList<u32> = triad.into();
         let mut product = AdjacencyList::<Vec<u32>>::new();
         if let Arity::Single(k) = self.arity {
-            product = list.power(k);
+            product = g.power(k);
         }
         if let Some(p) = self.identity {
             // product.contract_if(p);
-            let vecs = p(&self.arity, list.vertices().count() as u32);
+            let vecs = p(&self.arity, g.vertices().count() as u32);
             for vec in vecs {
                 for i in 1..vec.len() {
                     product.contract_vertices(&vec[0], &vec[i]);
@@ -359,25 +363,23 @@ impl PolymorphismFinder {
             }
         }
 
-        let mut domains = Domains::<Vec<u32>, u32>::new();
+        let mut domains = Lists::<Vec<u32>, u32>::new();
 
         if self.conservative {
             for vec in indicator.vertices() {
-                domains.insert(vec.clone(), vec.iter().cloned().collect::<Set<_>>());
+                domains.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
             }
         }
 
         if self.idempotent {
             for vec in indicator.vertices() {
                 if is_all_same(&vec) {
-                    let mut s = Set::new();
-                    s.insert(vec[0]);
-                    domains.insert(vec.clone(), s);
+                    domains.insert(vec.clone(), list![vec[0]]);
                 }
             }
         }
 
-        if let Some(map) = search_precolour(&indicator, &list, domains, algorithm) {
+        if let Some(map) = search_precolour(&indicator, &g, domains, algorithm) {
             Some(Polymorphism { map })
         } else {
             None
@@ -389,18 +391,27 @@ fn is_all_same<T: PartialEq>(arr: &[T]) -> bool {
     arr.windows(2).all(|w| w[0] == w[1])
 }
 
+/// The arity of a graph identity.
 #[derive(Debug)]
 pub enum Arity {
+    /// The usual case.
     Single(u32),
+    /// Needed for e.g. 3-4 weak near unamity polymorphisms.
     Dual(u32, u32),
 }
 
+/// The registered polymorphisms.
 #[derive(Debug)]
 pub enum PolymorphismKind {
+    /// (2-ary) commutative polymorphism
     Commutative,
+    /// (3-ary) majority polymorphism
     Majority,
+    /// (4-ary) siggers polymorphism
     Siggers,
+    /// 3-4 weak near unamity polymorphism
     WNU34,
+    /// 3 weak near unamity polymorphism
     WNU3,
 }
 
@@ -422,7 +433,8 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
     match kind {
         PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
             .identity(commutative)
-            .find_commutative(triad, &ac3_precolour),
+            .linear(true)
+            .find(&triad.into(), &ac3_precolour),
 
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
@@ -430,26 +442,15 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
             .linear(true)
             .find(&triad.into(), &sac1_precolour),
 
-        PolymorphismKind::Siggers => find_polymorphism(triad, &PolymorphismKind::Commutative)
-            .or_else(|| {
-                PolymorphismFinder::new(Arity::Single(3))
-                    .identity(wnu)
-                    .find(&triad.into(), &ac3_precolour)
-                    .or_else(|| {
-                        PolymorphismFinder::new(Arity::Single(4))
-                            .identity(siggers)
-                            .find(&triad.into(), &ac3_precolour)
-                    })
-            }),
+        PolymorphismKind::Siggers => PolymorphismFinder::new(Arity::Single(4))
+            .identity(siggers)
+            .linear(true)
+            .find(&triad.into(), &ac3_precolour),
 
-        PolymorphismKind::WNU34 => {
-            find_polymorphism(triad, &PolymorphismKind::Majority).or_else(|| {
-                PolymorphismFinder::new(Arity::Dual(3, 4))
-                    .identity(wnu)
-                    .linear(true)
-                    .find(&triad.into(), &sac_opt_precolour)
-            })
-        }
+        PolymorphismKind::WNU34 => PolymorphismFinder::new(Arity::Dual(3, 4))
+            .identity(wnu)
+            .linear(true)
+            .find(&triad.into(), &ac3_precolour),
 
         PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)

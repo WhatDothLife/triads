@@ -1,3 +1,4 @@
+//! The simplest form of an orientation of a tree that is not a path.
 use std::{
     cmp::{min, Reverse},
     collections::HashSet,
@@ -9,13 +10,10 @@ use std::{
     sync::Mutex,
 };
 
-use crate::{
-    adjacency_list::{AdjacencyList, Set},
-    configuration::Globals,
-};
+use crate::{adjacency_list::AdjacencyList, configuration::Globals, list};
 use rayon::prelude::*;
 
-use super::consistency::{ac3, ac3_precolour, Domains};
+use super::consistency::{ac3, ac3_precolour, Lists};
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
 ///
@@ -112,11 +110,9 @@ impl Triad {
 
 /// A modification of `ac3-precolour` that restricts the domain of vertex 0 to {0}. It
 /// is used to determine whether a partial triad is a rooted core.
-fn ac3_precolour_0(g0: &AdjacencyList<u32>, g1: &AdjacencyList<u32>) -> Option<Domains<u32, u32>> {
-    let mut domains = Domains::from_lists(g0, g1);
-    let mut set = Set::<u32>::new();
-    set.insert(0);
-    domains.insert(0, set);
+fn ac3_precolour_0(g0: &AdjacencyList<u32>, g1: &AdjacencyList<u32>) -> Option<Lists<u32, u32>> {
+    let mut domains = Lists::new();
+    domains.insert(0, list![0]);
     ac3_precolour(g0, g1, domains)
 }
 
@@ -556,8 +552,11 @@ fn _cores(arm_list: &[Vec<String>], cache: &mut Cache, num: u32, cons: &Constrai
     list
 }
 
+/// A `RangeIter` iterates over a finite range.
 pub trait RangeIter<T: PartialOrd<T>>: Iterator<Item = T> {
+    /// Returns the lower bound of the range (inclusive).
     fn start_bound(&self) -> T;
+    /// Returns the upper bound of the range (inclusive).
     fn end_bound(&self) -> T;
 }
 
