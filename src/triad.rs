@@ -58,13 +58,10 @@ impl Triad {
     ///
     /// Panics, if the triad already has 3 arms.
     pub fn add_arm(&mut self, arm: &str) {
-        for a in self.0.iter_mut() {
-            if a.is_empty() {
-                a.push_str(arm);
-                return;
-            }
-        }
+if self.0.len() == 3 {
         panic!("Triad already has 3 arms!");
+}
+self.0.push(String::from(arm));
     }
 
     /// Returns `true` if the triad is a core, and `false` otherwise.  A graph G is
