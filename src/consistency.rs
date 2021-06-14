@@ -22,6 +22,16 @@ impl<V0: Eq + Clone + Hash, V1: Eq + Clone + Hash, F> LocalConsistency<V0, V1> f
 {
 }
 
+/// Creates a List containing the arguments.
+///
+/// list! allows Lists to be defined with the same syntax as array expressions.
+#[macro_export]
+macro_rules! list {
+    ($($v:expr),* $(,)?) => {
+        std::iter::Iterator::collect(std::array::IntoIter::new([$($v,)*]))
+    };
+}
+
 /// Implementation of the AC-1 algorithm, specialized to find graph
 /// homomorphisms.
 ///
@@ -274,74 +284,120 @@ where
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
 /// locally consistent. The type of local consistency is determined by the
 /// algorithm `algo`.
-pub fn search_precolour<V0, V1, A>(
+pub fn search_precolour_iterative<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     lists: Lists<V0, V1>,
     ac: &A,
-) -> Option<HashMap<V0, V1>>
+) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
     A: LocalConsistency<V0, V1>,
 {
-    let lists_ac = ac(g0, g1, lists)?;
-    let iter = lists_ac.clone().into_iter();
+    let mut lists = ac(g0, g1, lists)?;
+    // Sort the vertices by their respective list length to speed up the
+    // algorithm
+    let mut sorted_list = lists.clone().into_iter().collect::<Vec<_>>();
+    sorted_list.sort_by(|(_, l0), (_, l1)| l1.size().cmp(&l0.size()));
+    let mut vertex_list = sorted_list.iter().map(|(a, _)| a).collect::<Vec<_>>();
 
-    if let Some(map) = search_rec(g0, g1, lists_ac, iter, ac) {
-        Some(
-            map.iter()
-                .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
-                .collect(),
-        )
-    } else {
-        None
+    let mut indent = 0;
+    let mut lists_stack = Vec::<(&V0, Lists<V0, V1>)>::new();
+
+    while !vertex_list.is_empty() {
+        let v0 = vertex_list.pop().unwrap();
+        let l = lists.get_mut(v0).unwrap();
+        let mut s = String::from("");
+        for _ in 0..indent {
+            s.push_str(" ");
+        }
+        println!("{}v0 = {:?}, l = {:?}", s, v0, l);
+
+        if let Some(elem) = l.pop() {
+            lists_stack.push((v0, lists.clone()));
+            lists.insert(v0.clone(), list![elem.clone()]);
+
+            if let Some(res) = ac(g0, g1, lists) {
+                indent += 1;
+                lists = res;
+            } else {
+                let (v, l1) = lists_stack.pop().unwrap();
+                vertex_list.push(v);
+                lists = l1;
+            }
+        } else {
+            if let Some((v, l1)) = lists_stack.pop() {
+                indent -= 1;
+                vertex_list.push(v0);
+                vertex_list.push(v);
+                lists = l1;
+            } else {
+                return None;
+            }
+        }
     }
+    Some(lists)
+}
+
+/// Performs a backtracking-search to find a mapping from `g0` to `g1` that is
+/// locally consistent. The type of local consistency is determined by the
+/// algorithm `algo`.
+pub fn search_precolour_recursive<V0, V1, A>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    lists: Lists<V0, V1>,
+    ac: &A,
+) -> Option<Lists<V0, V1>>
+where
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
+    A: LocalConsistency<V0, V1>,
+{
+    let lists = ac(g0, g1, lists)?;
+    let mut sorted_list = lists.clone().into_iter().collect::<Vec<_>>();
+    sorted_list.sort_by(|(_, l0), (_, l1)| l1.size().cmp(&l0.size()));
+    let vertex_list = sorted_list.iter().map(|(a, _)| a).collect::<Vec<_>>();
+    search_rec(g0, g1, lists, vertex_list, ac)
 }
 
 /// Recursive helper function.
-fn search_rec<V0, V1, I, A>(
+fn search_rec<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     f: Lists<V0, V1>,
-    mut iter: I,
-    ac: A,
+    mut vertex_list: Vec<&V0>,
+    ac: &A,
 ) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
-    I: Iterator<Item = (V0, List<V1>)>,
+    V0: Eq + Clone + Hash + Debug,
+    V1: Eq + Clone + Hash + Debug,
     A: LocalConsistency<V0, V1>,
 {
-    let (u, l) = if let Some(v) = iter.next() {
-        v
+    let v0 = if let Some(v0) = vertex_list.pop() {
+        v0
     } else {
         return Some(f);
     };
+    let l = f.get(&v0).unwrap();
+    println!("v0 = {:?}", v0);
+    println!("l = {:?}", l);
 
-    for v in l.iter() {
-        let mut set = List::new();
-        set.insert(v.clone());
+    for v1 in l.iter() {
+        println!("\t v1 = {:?}", v1);
+        let list = list![v1.clone()];
 
         let mut map = f.clone();
-        *map.get_mut(&u).unwrap() = set;
+        *map.get_mut(&v0).unwrap() = list;
 
-        if let Some(map_sac) = ac(g0, g1, map.clone()) {
-            map = map_sac;
-            return search_rec(g0, g1, map, iter, ac);
+        if let Some(res) = ac(g0, g1, map) {
+            map = res;
+            if let Some(res) = search_rec(g0, g1, map, vertex_list.clone(), ac) {
+                return Some(res);
+            }
         }
     }
     None
-}
-
-/// Creates a List containing the arguments.
-///
-/// list! allows Lists to be defined with the same syntax as array expressions.
-#[macro_export]
-macro_rules! list {
-    ($($v:expr),* $(,)?) => {
-        std::iter::Iterator::collect(std::array::IntoIter::new([$($v,)*]))
-    };
 }
 
 /// Tries to find a mapping from `g0` to `g1` that is locally consistent.
@@ -373,9 +429,6 @@ where
             let mut found = false;
 
             for v1 in list_v0.clone().iter() {
-                // let mut set = Set::new();
-                // set.insert(v1.clone());
-
                 let mut lists_sac = lists.clone();
                 lists_sac.insert(v0.clone(), list![v1.clone()]);
 
@@ -563,7 +616,7 @@ pub struct List<T: Eq + Hash> {
     list: HashSet<T>,
 }
 
-impl<T: Eq + Hash> List<T> {
+impl<T: Eq + Hash + Clone> List<T> {
     /// Creates an empty `List`.
     ///
     /// # Examples
@@ -660,6 +713,16 @@ impl<T: Eq + Hash> List<T> {
     pub fn remove(&mut self, v: &T) -> bool {
         self.list.remove(v)
     }
+
+    pub fn pop(&mut self) -> Option<T> {
+        let elemm = self.list.iter().cloned().next();
+        if let Some(elem) = elemm {
+            self.list.remove(&elem);
+            return Some(elem);
+        } else {
+            None
+        }
+    }
 }
 
 impl<T: Eq + Hash> FromIterator<T> for List<T> {
@@ -669,13 +732,3 @@ impl<T: Eq + Hash> FromIterator<T> for List<T> {
         }
     }
 }
-
-// impl<V0: Eq + Hash + Clone, V1: Eq + Clone + Hash> Lists<V0, V1> {
-//     pub fn from_lists(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Lists<V0, V1> {
-//         let mut lists = Lists::new();
-//         for v0 in g0.vertices() {
-//             lists.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
-//         }
-//         lists
-//     }
-// }
