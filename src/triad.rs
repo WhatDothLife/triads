@@ -111,9 +111,9 @@ impl Triad {
 /// A modification of `ac3-precolour` that restricts the domain of vertex 0 to {0}. It
 /// is used to determine whether a partial triad is a rooted core.
 fn ac3_precolour_0(g0: &AdjacencyList<u32>, g1: &AdjacencyList<u32>) -> Option<Lists<u32, u32>> {
-    let mut domains = Lists::new();
-    domains.insert(0, list![0]);
-    ac3_precolour(g0, g1, domains)
+    let mut lists = Lists::new();
+    lists.insert(0, list![0]);
+    ac3_precolour(g0, g1, lists)
 }
 
 impl fmt::Display for Triad {

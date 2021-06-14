@@ -1,25 +1,27 @@
 //! A homomorphism from H^k to H.
 use std::{
     collections::HashMap,
+    convert::TryFrom,
     fmt::{self, Debug},
     hash::Hash,
 };
 
 use crate::{
     adjacency_list::AdjacencyList,
-    consistency::{List, Lists},
+    consistency::{search_precolour_iterative, List, Lists},
 };
 use crate::{
     consistency::{ac3_precolour, find_precolour, LocalConsistency},
     list,
 };
 
-use super::{
-    consistency::{sac1_precolour, search_precolour},
-    triad::{level, Triad},
-};
+use super::consistency::search_precolour_recursive;
+use super::triad::{level, Triad};
 
 type Identity = fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>;
+pub trait Mapping<V0, V1> {
+    fn map(&self, v0: V0) -> V1;
+}
 
 /// Returns a set of sets of vertices that should be contracted when searching
 /// for wnu identity of arity `arity` of a graph with `num` nodes.
@@ -178,11 +180,11 @@ enum WNU<T: Eq + Clone + Hash> {
 ///
 /// TODO
 #[derive(Debug)]
-pub struct Polymorphism<U>
+pub struct Polymorphism<T>
 where
-    U: Clone + Eq + Hash,
+    T: Clone + Eq + Hash,
 {
-    map: HashMap<Vec<U>, U>,
+    map: HashMap<Vec<T>, T>,
 }
 
 impl<T> fmt::Display for Polymorphism<T>
@@ -196,6 +198,29 @@ where
         }
         write!(f, "{}", s)
     }
+}
+
+impl<V: Clone + Eq + Hash> Mapping<Vec<V>, V> for Polymorphism<V> {
+    fn map(&self, v0: Vec<V>) -> V {
+        return self.map.get(&v0).unwrap().clone();
+    }
+}
+
+pub fn is_homomorphism<V0: Clone + Eq + Hash, V1: Clone + Eq + Hash, M>(
+    mapping: M,
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+) -> bool
+where
+    M: Mapping<V0, V1>,
+{
+    for (u, v) in g0.edges() {
+        if !g1.has_edge(&mapping.map(u), &mapping.map(v)) {
+            // eprintln!("({:?}, {:?}) is no edge in g1!", u, v);
+            return false;
+        }
+    }
+    true
 }
 
 /// Used to create a representation of a polymorphism finder. Polymorphism
@@ -284,7 +309,7 @@ impl PolymorphismFinder {
             Arity::Dual(k, l) => g.power(k).union(&g.power(l)),
         };
 
-        let mut domains = Lists::<Vec<u32>, u32>::new();
+        let mut lists = Lists::<Vec<u32>, u32>::new();
 
         if let Some(p) = self.identity {
             let vecs = p(&self.arity, g.vertices().count() as u32);
@@ -293,27 +318,27 @@ impl PolymorphismFinder {
                     product.contract_vertices(&vec[0], &vec[i]);
                 }
                 if self.majority {
-                    domains.insert(vec[0].clone(), list![vec[0][0]]);
+                    lists.insert(vec[0].clone(), list![vec[0][0]]);
                 }
             }
         }
 
         if self.conservative {
             for vec in product.vertices() {
-                domains.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
+                lists.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
             }
         }
 
         if self.idempotent {
             for vec in product.vertices() {
                 if is_all_same(&vec) {
-                    domains.insert(vec.clone(), list![vec[0]]);
+                    lists.insert(vec.clone(), list![vec[0]]);
                 }
             }
         }
 
         if self.linear {
-            if let Some(map) = find_precolour(&product, g, domains, algorithm) {
+            if let Some(map) = find_precolour(&product, g, lists, algorithm) {
                 return Some(Polymorphism {
                     map: map
                         .iter()
@@ -323,8 +348,8 @@ impl PolymorphismFinder {
             } else {
                 None
             }
-        } else if let Some(map) = search_precolour(&product, g, domains, algorithm) {
-            Some(Polymorphism { map })
+        } else if let Some(lists) = search_precolour_iterative(&product, g, lists, algorithm) {
+            Some(Polymorphism::try_from(lists).unwrap())
         } else {
             None
         }
@@ -363,24 +388,24 @@ impl PolymorphismFinder {
             }
         }
 
-        let mut domains = Lists::<Vec<u32>, u32>::new();
+        let mut lists = Lists::<Vec<u32>, u32>::new();
 
         if self.conservative {
             for vec in indicator.vertices() {
-                domains.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
+                lists.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
             }
         }
 
         if self.idempotent {
             for vec in indicator.vertices() {
                 if is_all_same(&vec) {
-                    domains.insert(vec.clone(), list![vec[0]]);
+                    lists.insert(vec.clone(), list![vec[0]]);
                 }
             }
         }
 
-        if let Some(map) = search_precolour(&indicator, &g, domains, algorithm) {
-            Some(Polymorphism { map })
+        if let Some(lists) = search_precolour_recursive(&indicator, &g, lists, algorithm) {
+            Some(Polymorphism::try_from(lists).unwrap())
         } else {
             None
         }
@@ -433,7 +458,7 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
     match kind {
         PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
             .identity(commutative)
-            .linear(true)
+            // .linear(true)
             .find(&triad.into(), &ac3_precolour),
 
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
@@ -452,5 +477,22 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polym
         PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
             .find(&triad.into(), &ac3_precolour),
+    }
+}
+
+impl<V0: Clone + Eq + Hash + Debug> TryFrom<Lists<Vec<V0>, V0>> for Polymorphism<V0> {
+    type Error = &'static str;
+
+    fn try_from(mut lists: Lists<Vec<V0>, V0>) -> Result<Self, Self::Error> {
+        let mut map = HashMap::<Vec<V0>, V0>::new();
+        for (k, v) in lists.iter_mut() {
+            if v.size() == 1 {
+                map.insert(k.clone(), v.pop().unwrap());
+            } else {
+                println!("{:?}, {:?}", k, v);
+                return Err("Unable to construct polymorphism from the given lists");
+            }
+        }
+        Ok(Polymorphism { map })
     }
 }
