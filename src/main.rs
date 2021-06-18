@@ -51,7 +51,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
         Run::Polymorphism => {
             if let Some(polymorphism) = &options.polymorphism {
                 if let Some(ref triad) = options.triad {
-                    println!("> Checking polymorphism...");
+                    println!("\n> Checking polymorphism...");
                     find_polymorphism(&triad, polymorphism).print_console(&options, &triad)?;
                 } else if let Some(constraint) = &options.constraint {
                     let range = options.range.unwrap();
@@ -65,7 +65,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
 
                     for (i, vec) in triads.iter().enumerate() {
                         let log = Mutex::new(SearchLog::new(format!(
-                            "{}/{}/{}_{}.csv",
+                            "{}/{}/results/{}_{}.csv",
                             Globals::get().data,
                             options.constraint.as_ref().unwrap(),
                             options.polymorphism.as_ref().unwrap(),
