@@ -121,7 +121,7 @@ impl fmt::Display for Triad {
         let mut s = String::new();
         for (i, arm) in self.0.iter().enumerate() {
             if i > 0 {
-                s.push('|');
+                s.push('_');
             }
             s.push_str(arm);
         }
