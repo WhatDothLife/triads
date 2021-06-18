@@ -2,9 +2,11 @@
 //! SAC-Opt implemented to work on graphs.
 use std::fmt::Debug;
 use std::iter::FromIterator;
+use std::time::Instant;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
 use crate::adjacency_list::{AdjacencyList, Set};
+use crate::metrics::Metrics;
 
 /// The data structure that every consistency algorithm relies on.
 pub type Lists<V0, V1> = HashMap<V0, List<V1>>;
@@ -283,43 +285,42 @@ where
 
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
 /// locally consistent. The type of local consistency is determined by the
-/// algorithm `algo`.
+/// algorithm `consistency`.
 pub fn search_precolour_iterative<V0, V1, A>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     lists: Lists<V0, V1>,
     ac: &A,
+    metrics: &mut Metrics,
 ) -> Option<Lists<V0, V1>>
 where
     V0: Eq + Clone + Hash + Debug,
     V1: Eq + Clone + Hash + Debug,
     A: LocalConsistency<V0, V1>,
 {
-    let mut lists = ac(g0, g1, lists)?;
-    // Sort the vertices by their respective list length to speed up the
-    // algorithm
+    let ac_start = Instant::now();
+    let res = ac(g0, g1, lists);
+    metrics.ac_time = ac_start.elapsed();
+    let mut lists = res?;
+
+    // Sort vertices by their respective list length
     let mut sorted_list = lists.clone().into_iter().collect::<Vec<_>>();
     sorted_list.sort_by(|(_, l0), (_, l1)| l1.size().cmp(&l0.size()));
     let mut vertex_list = sorted_list.iter().map(|(a, _)| a).collect::<Vec<_>>();
 
-    let mut indent = 0;
+    let mut backtracked = 0;
     let mut lists_stack = Vec::<(&V0, Lists<V0, V1>)>::new();
 
+    let search_start = Instant::now();
     while !vertex_list.is_empty() {
         let v0 = vertex_list.pop().unwrap();
         let l = lists.get_mut(v0).unwrap();
-        let mut s = String::from("");
-        for _ in 0..indent {
-            s.push_str(" ");
-        }
-        println!("{}v0 = {:?}, l = {:?}", s, v0, l);
 
         if let Some(elem) = l.pop() {
             lists_stack.push((v0, lists.clone()));
             lists.insert(v0.clone(), list![elem.clone()]);
 
             if let Some(res) = ac(g0, g1, lists) {
-                indent += 1;
                 lists = res;
             } else {
                 let (v, l1) = lists_stack.pop().unwrap();
@@ -328,7 +329,7 @@ where
             }
         } else {
             if let Some((v, l1)) = lists_stack.pop() {
-                indent -= 1;
+                backtracked += 1;
                 vertex_list.push(v0);
                 vertex_list.push(v);
                 lists = l1;
@@ -337,6 +338,8 @@ where
             }
         }
     }
+    metrics.search_time = search_start.elapsed();
+    metrics.backtracked = backtracked;
     Some(lists)
 }
 

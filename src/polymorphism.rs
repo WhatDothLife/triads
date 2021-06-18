@@ -4,14 +4,16 @@ use std::{
     convert::TryFrom,
     fmt::{self, Debug},
     hash::Hash,
+    time::Instant,
 };
 
 use crate::{
     adjacency_list::AdjacencyList,
     consistency::{search_precolour_iterative, List, Lists},
+    metrics::Metrics,
 };
 use crate::{
-    consistency::{ac3_precolour, find_precolour, LocalConsistency},
+    consistency::{ac3_precolour, LocalConsistency},
     list,
 };
 
@@ -19,9 +21,6 @@ use super::consistency::search_precolour_recursive;
 use super::triad::{level, Triad};
 
 type Identity = fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>;
-pub trait Mapping<V0, V1> {
-    fn map(&self, v0: V0) -> V1;
-}
 
 /// Returns a set of sets of vertices that should be contracted when searching
 /// for wnu identity of arity `arity` of a graph with `num` nodes.
@@ -187,6 +186,23 @@ where
     map: HashMap<Vec<T>, T>,
 }
 
+impl<V0: Clone + Eq + Hash + Debug> TryFrom<Lists<Vec<V0>, V0>> for Polymorphism<V0> {
+    type Error = &'static str;
+
+    fn try_from(mut lists: Lists<Vec<V0>, V0>) -> Result<Self, Self::Error> {
+        let mut map = HashMap::<Vec<V0>, V0>::new();
+        for (k, v) in lists.iter_mut() {
+            if v.size() == 1 {
+                map.insert(k.clone(), v.pop().unwrap());
+            } else {
+                println!("{:?}, {:?}", k, v);
+                return Err("Unable to construct polymorphism from the given lists");
+            }
+        }
+        Ok(Polymorphism { map })
+    }
+}
+
 impl<T> fmt::Display for Polymorphism<T>
 where
     T: Hash + Clone + Eq + Debug,
@@ -200,28 +216,22 @@ where
     }
 }
 
-impl<V: Clone + Eq + Hash> Mapping<Vec<V>, V> for Polymorphism<V> {
-    fn map(&self, v0: Vec<V>) -> V {
-        return self.map.get(&v0).unwrap().clone();
-    }
-}
-
-pub fn is_homomorphism<V0: Clone + Eq + Hash, V1: Clone + Eq + Hash, M>(
-    mapping: M,
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-) -> bool
-where
-    M: Mapping<V0, V1>,
-{
-    for (u, v) in g0.edges() {
-        if !g1.has_edge(&mapping.map(u), &mapping.map(v)) {
-            // eprintln!("({:?}, {:?}) is no edge in g1!", u, v);
-            return false;
-        }
-    }
-    true
-}
+// pub fn is_homomorphism<V0: Clone + Eq + Hash, V1: Clone + Eq + Hash, M>(
+//     mapping: M,
+//     g0: &AdjacencyList<V0>,
+//     g1: &AdjacencyList<V1>,
+// ) -> bool
+// where
+//     M: Mapping<V0, V1>,
+// {
+//     for (u, v) in g0.edges() {
+//         if !g1.has_edge(&mapping.to(u), &mapping.to(v)) {
+//             // eprintln!("({:?}, {:?}) is no edge in g1!", u, v);
+//             return false;
+//         }
+//     }
+//     true
+// }
 
 /// Used to create a representation of a polymorphism finder. Polymorphism
 /// settings are set using the "builder pattern" with the
@@ -298,19 +308,20 @@ impl PolymorphismFinder {
     }
 
     /// Tries to find the configured polymorphism for graph `g` by using
-    /// algorithm `algorithm` as a heuristic. Returns None, if there is no such
-    /// polymorphism, otherwise the polymorphism is returned.
-    pub fn find<A>(&self, g: &AdjacencyList<u32>, algorithm: &A) -> Option<Polymorphism<u32>>
+    /// algorithm `algorithm` as a heuristic. Returns a searchlog that includes
+    /// all the relevant metrics recorded during the search.
+    pub fn find<A>(&self, g: &AdjacencyList<u32>, algorithm: &A) -> Metrics
     where
         A: LocalConsistency<Vec<u32>, u32>,
     {
+        let mut metrics = Metrics::new();
+        let indicator_start = Instant::now();
         let mut product = match self.arity {
             Arity::Single(k) => g.power(k),
             Arity::Dual(k, l) => g.power(k).union(&g.power(l)),
         };
 
         let mut lists = Lists::<Vec<u32>, u32>::new();
-
         if let Some(p) = self.identity {
             let vecs = p(&self.arity, g.vertices().count() as u32);
             for vec in vecs {
@@ -337,27 +348,25 @@ impl PolymorphismFinder {
             }
         }
 
-        if self.linear {
-            if let Some(map) = find_precolour(&product, g, lists, algorithm) {
-                return Some(Polymorphism {
-                    map: map
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.iter().cloned().next().unwrap()))
-                        .collect(),
-                });
-            } else {
-                None
-            }
-        } else if let Some(lists) = search_precolour_iterative(&product, g, lists, algorithm) {
-            Some(Polymorphism::try_from(lists).unwrap())
-        } else {
-            None
+        metrics.indicator_time = indicator_start.elapsed();
+
+        if let Some(lists) =
+            search_precolour_iterative(&product, &g, lists, algorithm, &mut metrics)
+        {
+            metrics.polymorphism = Some(Polymorphism::try_from(lists).unwrap());
         }
+
+        metrics
     }
 }
 
 impl PolymorphismFinder {
-    /// Optimization for commutative polymorphisms
+    // /// Optimization for various polymorphisms
+    // TODO pub fn optimize(mut self, optimization: Optimization) -> Self {
+    //     // self.identity = Some(indentity);
+    //     self
+    // }
+
     /// TODO refactor me
     pub fn find_commutative<A>(&self, triad: &Triad, algorithm: &A) -> Option<Polymorphism<u32>>
     where
@@ -454,45 +463,22 @@ impl fmt::Display for PolymorphismKind {
 
 /// Returns None, if `list` does not have a polymorphism of kind `kind`,
 /// otherwise a polymorphism of `list` is returned.
-pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Option<Polymorphism<u32>> {
-    match kind {
-        PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
-            .identity(commutative)
-            // .linear(true)
-            .find(&triad.into(), &ac3_precolour),
+pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
+    let finder = match kind {
+        PolymorphismKind::Commutative => {
+            PolymorphismFinder::new(Arity::Single(2)).identity(commutative)
+        }
 
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
-            .majority(true)
-            .find(&triad.into(), &ac3_precolour),
+            .majority(true),
 
-        PolymorphismKind::Siggers => PolymorphismFinder::new(Arity::Single(4))
-            .identity(siggers)
-            .find(&triad.into(), &ac3_precolour),
+        PolymorphismKind::Siggers => PolymorphismFinder::new(Arity::Single(4)).identity(siggers),
 
-        PolymorphismKind::WNU34 => PolymorphismFinder::new(Arity::Dual(3, 4))
-            .identity(wnu)
-            .find(&triad.into(), &ac3_precolour),
+        PolymorphismKind::WNU34 => PolymorphismFinder::new(Arity::Dual(3, 4)).identity(wnu),
 
-        PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3))
-            .identity(wnu)
-            .find(&triad.into(), &ac3_precolour),
-    }
-}
+        PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3)).identity(wnu),
+    };
 
-impl<V0: Clone + Eq + Hash + Debug> TryFrom<Lists<Vec<V0>, V0>> for Polymorphism<V0> {
-    type Error = &'static str;
-
-    fn try_from(mut lists: Lists<Vec<V0>, V0>) -> Result<Self, Self::Error> {
-        let mut map = HashMap::<Vec<V0>, V0>::new();
-        for (k, v) in lists.iter_mut() {
-            if v.size() == 1 {
-                map.insert(k.clone(), v.pop().unwrap());
-            } else {
-                println!("{:?}, {:?}", k, v);
-                return Err("Unable to construct polymorphism from the given lists");
-            }
-        }
-        Ok(Polymorphism { map })
-    }
+    finder.find(&triad.into(), &ac3_precolour)
 }

@@ -26,6 +26,7 @@
 pub mod adjacency_list;
 pub mod configuration;
 pub mod consistency;
+// pub mod math;
 pub mod metrics;
 pub mod polymorphism;
 pub mod triad;
