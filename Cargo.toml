@@ -12,6 +12,7 @@ colored = "2.0"
 clap = "2.33.0"
 rayon = "1.5"
 lazy_static = "1.4.0"
+humantime = "2.0.1"
 
 [[bench]]
 name = "ac_bench"
