@@ -13,15 +13,11 @@
 
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::{
-    fs::{File, OpenOptions},
-    io::{self, Write},
-    sync::Mutex,
-    time::{Duration, Instant},
-};
+use std::{fs::File, io, sync::Mutex};
 use tripolys::{
     adjacency_list::AdjacencyList,
     configuration::{Constraint, Globals, Run, TripolysOptions},
+    metrics::SearchLog,
     polymorphism::find_polymorphism,
     triad::{cores_length_range, cores_nodes_range},
 };
@@ -56,26 +52,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
             if let Some(polymorphism) = &options.polymorphism {
                 if let Some(ref triad) = options.triad {
                     println!("> Checking polymorphism...");
-
-                    if let Some(map) = find_polymorphism(&triad, polymorphism) {
-                        let msg =
-                            format!("\t✔ {} does have a {} polymorphism!", triad, &polymorphism);
-                        println!("{}", msg.green());
-                        let path = format!("{}/{}_{}", Globals::get().data, &polymorphism, triad);
-                        if let Ok(mut file) =
-                            OpenOptions::new().append(true).create(true).open(path)
-                        {
-                            if let Err(e) = writeln!(file, "{:?}", map) {
-                                eprintln!("Couldn't write to file: {}", e);
-                            }
-                        }
-                    } else {
-                        let msg = format!(
-                            "\t✘ {} doesn't have a {} polymorphism!",
-                            triad, &polymorphism
-                        );
-                        println!("{}", msg.red());
-                    }
+                    find_polymorphism(&triad, polymorphism).print_console(&options, &triad)?;
                 } else if let Some(constraint) = &options.constraint {
                     let range = options.range.unwrap();
 
@@ -87,43 +64,26 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                     println!("{}", "\t✔ Generated triads!".green());
 
                     for (i, vec) in triads.iter().enumerate() {
+                        let log = Mutex::new(SearchLog::new(format!(
+                            "{}/{}/{}_{}.csv",
+                            Globals::get().data,
+                            options.constraint.as_ref().unwrap(),
+                            options.polymorphism.as_ref().unwrap(),
+                            range.start() + i as u32
+                        )));
+
                         println!(
                             "> Checking polymorphism for triads with {} {}...",
                             constraint.identity(),
                             range.start() + i as u32
                         );
-                        let sum = Mutex::new(Duration::from_secs(0));
                         vec.par_iter().for_each(|triad| {
-                            let start = Instant::now();
-
-                            if find_polymorphism(&triad, polymorphism).is_none() {
-                                let msg = format!(
-                                    "\t✘ {} doesn't have a {} polymorphism!",
-                                    &triad, polymorphism
-                                );
-                                println!("{}", msg.red());
-
-                                let path = format!(
-                                    "{}/{}/triads_{}_{}",
-                                    Globals::get().data,
-                                    &constraint,
-                                    polymorphism,
-                                    i
-                                );
-
-                                if let Ok(mut file) =
-                                    OpenOptions::new().append(true).create(true).open(path)
-                                {
-                                    if let Err(e) = writeln!(file, "{}", &triad) {
-                                        eprintln!("Couldn't write to file: {}", e);
-                                    }
-                                }
-                            }
-                            *sum.lock().unwrap() += start.elapsed();
+                            log.lock()
+                                .unwrap()
+                                .add(triad.clone(), find_polymorphism(&triad, polymorphism));
                         });
+                        log.lock().unwrap().write()?;
                     }
-                } else {
-                    // TODO return Error
                 }
             }
         }
