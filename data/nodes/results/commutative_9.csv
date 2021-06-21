@@ -1,0 +1,4 @@
+triad,polymorphism,backtracked,indicator_time,ac_time,search_time,total_time
+0111_000_1,y,0,447.778µs,473.495µs,6.193228ms,7.114501ms
+01000_00_1,y,0,441.161µs,486.983µs,6.2494ms,7.177544ms
+01111_00_1,y,0,405.036µs,493.821µs,6.296811ms,7.195668ms
