@@ -1,7 +1,9 @@
 //! A collection of various local-consistency algorithms such as AC-3 and
 //! SAC-Opt implemented to work on graphs.
+use core::time;
 use std::fmt::Debug;
 use std::iter::FromIterator;
+use std::thread;
 use std::time::Instant;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
@@ -312,6 +314,7 @@ where
     let mut lists_stack = Vec::<(&V0, Lists<V0, V1>)>::new();
 
     let search_start = Instant::now();
+    let mut found = true;
     while !vertex_list.is_empty() {
         let v0 = vertex_list.pop().unwrap();
         let l = lists.get_mut(v0).unwrap();
@@ -334,13 +337,18 @@ where
                 vertex_list.push(v);
                 lists = l1;
             } else {
-                return None;
+                found = false;
+                break;
             }
         }
     }
     metrics.search_time = search_start.elapsed();
     metrics.backtracked = backtracked;
-    Some(lists)
+    if found {
+        Some(lists)
+    } else {
+        None
+    }
 }
 
 /// Performs a backtracking-search to find a mapping from `g0` to `g1` that is
