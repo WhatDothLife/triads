@@ -34,7 +34,7 @@ impl SearchLog {
         {
             writeln!(
                 file,
-                "triad,polymorphism,backtracked,indicator_time,ac_time,search_time",
+                "triad,polymorphism,backtracked,indicator_time,ac_time,search_time,total_time",
             )?;
             for (triad, metrics) in &self.log {
                 writeln!(file, "{},{}", triad, metrics.format())?;
@@ -52,6 +52,7 @@ pub struct Metrics {
     pub indicator_time: Duration,
     pub ac_time: Duration,
     pub search_time: Duration,
+    pub total_time: Duration,
     pub polymorphism: Option<Polymorphism<u32>>,
 }
 
@@ -62,13 +63,15 @@ impl Metrics {
             indicator_time: Duration::default(),
             ac_time: Duration::default(),
             search_time: Duration::default(),
+            total_time: Duration::default(),
             polymorphism: None,
         }
     }
 
     pub fn format(&self) -> String {
+        let total_time = self.indicator_time + self.ac_time + self.search_time;
         format!(
-            "{},{},{:?},{:?},{:?}",
+            "{},{},{:?},{:?},{:?},{:?}",
             if self.polymorphism.is_some() {
                 'y'
             } else {
@@ -77,7 +80,8 @@ impl Metrics {
             self.backtracked,
             self.indicator_time,
             self.ac_time,
-            self.search_time
+            self.search_time,
+            total_time
         )
     }
 
@@ -97,10 +101,12 @@ impl Metrics {
             );
             println!("{}", msg.red());
         };
+        let total_time = self.indicator_time + self.ac_time + self.search_time;
         println!("backtracked: {}", self.backtracked);
         println!("indicator_time: {:?}", self.indicator_time);
         println!("ac_time: {:?}", self.ac_time);
         println!("search_time: {:?}", self.search_time);
+        println!("total_time: {:?}", total_time);
 
         Ok(())
     }

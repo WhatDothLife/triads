@@ -78,9 +78,8 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                             range.start() + i as u32
                         );
                         vec.par_iter().for_each(|triad| {
-                            log.lock()
-                                .unwrap()
-                                .add(triad.clone(), find_polymorphism(&triad, polymorphism));
+                            let res = find_polymorphism(&triad, polymorphism);
+                            log.lock().unwrap().add(triad.clone(), res);
                         });
                         log.lock().unwrap().write()?;
                     }
