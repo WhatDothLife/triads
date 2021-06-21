@@ -176,8 +176,6 @@ enum WNU<T: Eq + Clone + Hash> {
 }
 
 /// A polymorphism implemented as a wrapper struct around a `HashMap<Vec<U>, U>`.
-///
-/// TODO
 #[derive(Debug)]
 pub struct Polymorphism<T>
 where
@@ -216,23 +214,6 @@ where
     }
 }
 
-// pub fn is_homomorphism<V0: Clone + Eq + Hash, V1: Clone + Eq + Hash, M>(
-//     mapping: M,
-//     g0: &AdjacencyList<V0>,
-//     g1: &AdjacencyList<V1>,
-// ) -> bool
-// where
-//     M: Mapping<V0, V1>,
-// {
-//     for (u, v) in g0.edges() {
-//         if !g1.has_edge(&mapping.to(u), &mapping.to(v)) {
-//             // eprintln!("({:?}, {:?}) is no edge in g1!", u, v);
-//             return false;
-//         }
-//     }
-//     true
-// }
-
 /// Used to create a representation of a polymorphism finder. Polymorphism
 /// settings are set using the "builder pattern" with the
 /// [`PolymorphismFinder::find`] method being the terminal method that starts a
@@ -261,6 +242,7 @@ pub struct PolymorphismFinder {
     idempotent: bool,
     majority: bool,
     linear: bool,
+    optimization: Option<Optimization>,
 }
 
 impl PolymorphismFinder {
@@ -274,6 +256,7 @@ impl PolymorphismFinder {
             idempotent: false,
             majority: false,
             linear: false,
+            optimization: None,
         }
     }
 
@@ -307,6 +290,11 @@ impl PolymorphismFinder {
         self
     }
 
+    pub fn optimize(mut self, optimization: Optimization) -> Self {
+        self.optimization = Some(optimization);
+        self
+    }
+
     /// Tries to find the configured polymorphism for graph `g` by using
     /// algorithm `algorithm` as a heuristic. Returns a searchlog that includes
     /// all the relevant metrics recorded during the search.
@@ -316,7 +304,7 @@ impl PolymorphismFinder {
     {
         let mut metrics = Metrics::new();
         let indicator_start = Instant::now();
-        let mut product = match self.arity {
+        let mut indicator = match self.arity {
             Arity::Single(k) => g.power(k),
             Arity::Dual(k, l) => g.power(k).union(&g.power(l)),
         };
@@ -326,7 +314,7 @@ impl PolymorphismFinder {
             let vecs = p(&self.arity, g.vertices().count() as u32);
             for vec in vecs {
                 for i in 1..vec.len() {
-                    product.contract_vertices(&vec[0], &vec[i]);
+                    indicator.contract_vertices(&vec[0], &vec[i]);
                 }
                 if self.majority {
                     lists.insert(vec[0].clone(), list![vec[0][0]]);
@@ -334,14 +322,29 @@ impl PolymorphismFinder {
             }
         }
 
+        if let Some(_) = &self.optimization {
+            // Only consider consider the component with vertices (u, v) where u and
+            // v are on the same level.
+            let mut graph = AdjacencyList::<Vec<u32>>::new();
+            for comp in indicator.components() {
+                let v = comp.vertices().next().unwrap();
+                let triad = Triad::try_from(g.clone()).unwrap();
+                if level(v[0], &triad) == level(v[1], &triad) {
+                    graph = graph.union(&comp);
+                }
+            }
+            indicator = graph;
+        }
+
         if self.conservative {
-            for vec in product.vertices() {
+            for vec in indicator.vertices() {
                 lists.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
             }
         }
 
         if self.idempotent {
-            for vec in product.vertices() {
+            println!("Idempotent!");
+            for vec in indicator.vertices() {
                 if is_all_same(&vec) {
                     lists.insert(vec.clone(), list![vec[0]]);
                 }
@@ -351,73 +354,12 @@ impl PolymorphismFinder {
         metrics.indicator_time = indicator_start.elapsed();
 
         if let Some(lists) =
-            search_precolour_iterative(&product, &g, lists, algorithm, &mut metrics)
+            search_precolour_iterative(&indicator, &g, lists, algorithm, &mut metrics)
         {
             metrics.polymorphism = Some(Polymorphism::try_from(lists).unwrap());
         }
 
         metrics
-    }
-}
-
-impl PolymorphismFinder {
-    // /// Optimization for various polymorphisms
-    // TODO pub fn optimize(mut self, optimization: Optimization) -> Self {
-    //     // self.identity = Some(indentity);
-    //     self
-    // }
-
-    /// TODO refactor me
-    pub fn find_commutative<A>(&self, triad: &Triad, algorithm: &A) -> Option<Polymorphism<u32>>
-    where
-        A: LocalConsistency<Vec<u32>, u32>,
-    {
-        let g: AdjacencyList<u32> = triad.into();
-        let mut product = AdjacencyList::<Vec<u32>>::new();
-        if let Arity::Single(k) = self.arity {
-            product = g.power(k);
-        }
-        if let Some(p) = self.identity {
-            // product.contract_if(p);
-            let vecs = p(&self.arity, g.vertices().count() as u32);
-            for vec in vecs {
-                for i in 1..vec.len() {
-                    product.contract_vertices(&vec[0], &vec[i]);
-                }
-            }
-        }
-
-        // Only consider consider the component with vertices (u, v) where u and
-        // v are on the same level.
-        let mut indicator = AdjacencyList::<Vec<u32>>::new();
-        for comp in product.components() {
-            let v = comp.vertices().next().unwrap();
-            if level(v[0], triad) == level(v[1], triad) {
-                indicator = indicator.union(&comp);
-            }
-        }
-
-        let mut lists = Lists::<Vec<u32>, u32>::new();
-
-        if self.conservative {
-            for vec in indicator.vertices() {
-                lists.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
-            }
-        }
-
-        if self.idempotent {
-            for vec in indicator.vertices() {
-                if is_all_same(&vec) {
-                    lists.insert(vec.clone(), list![vec[0]]);
-                }
-            }
-        }
-
-        if let Some(lists) = search_precolour_recursive(&indicator, &g, lists, algorithm) {
-            Some(Polymorphism::try_from(lists).unwrap())
-        } else {
-            None
-        }
     }
 }
 
@@ -449,6 +391,12 @@ pub enum PolymorphismKind {
     WNU3,
 }
 
+/// Possible optimizations for the polymophism search
+#[derive(Debug)]
+pub enum Optimization {
+    Commutative,
+}
+
 impl fmt::Display for PolymorphismKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -465,9 +413,9 @@ impl fmt::Display for PolymorphismKind {
 /// otherwise a polymorphism of `list` is returned.
 pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
     let finder = match kind {
-        PolymorphismKind::Commutative => {
-            PolymorphismFinder::new(Arity::Single(2)).identity(commutative)
-        }
+        PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
+            .identity(commutative)
+            .optimize(Optimization::Commutative),
 
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
