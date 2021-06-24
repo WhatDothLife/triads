@@ -1,17 +1,13 @@
 //! A collection of various local-consistency algorithms such as AC-3 and
 //! SAC-Opt implemented to work on graphs.
-use core::time;
 use std::fmt::Debug;
 use std::iter::FromIterator;
-use std::thread;
 use std::time::Instant;
 use std::{collections::HashMap, collections::HashSet, hash::Hash};
 
+use crate::adjacency_list::VertexID;
 use crate::adjacency_list::{AdjacencyList, Set};
 use crate::metrics::Metrics;
-
-/// The data structure that every consistency algorithm relies on.
-pub type Lists<V0, V1> = HashMap<V0, List<V1>>;
 
 /// Abstraction of a local consistency algorithm that takes two graphs and a
 /// list and tries to make the list consistent. Returns None, if the list
@@ -50,11 +46,11 @@ pub fn ac1_precolour<V0, V1>(
     mut lists: Lists<V0, V1>,
 ) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
+    V0: VertexID,
+    V1: VertexID,
 {
     for v0 in g0.vertices() {
-        if !lists.contains_key(&v0) {
+        if !lists.contains_variable(&v0) {
             lists.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
         }
     }
@@ -110,10 +106,22 @@ where
 /// of g1 for each node in g0.
 pub fn ac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash,
-    V1: Eq + Clone + Hash,
+    V0: VertexID,
+    V1: VertexID,
 {
     ac1_precolour(g0, g1, Lists::new())
+}
+
+pub fn ac3_precolour<V0, V1>(
+    g0: &AdjacencyList<V0>,
+    g1: &AdjacencyList<V1>,
+    f: Lists<V0, V1>,
+) -> Option<Lists<V0, V1>>
+where
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
+{
+    ac3_precolour_lists(g0, g1, f).map(|(a, _)| a)
 }
 
 /// Implementation of the AC-3 algorithm due to Mackworth 1977, specialized to
@@ -124,17 +132,17 @@ where
 ///
 /// Returns None, if an empty list is derived for some vertex v, otherwise an
 /// arc-consistent map is returned.
-pub fn ac3_precolour<V0, V1>(
+pub fn ac3_precolour_lists<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     mut f: Lists<V0, V1>,
-) -> Option<Lists<V0, V1>>
+) -> Option<(Lists<V0, V1>, Lists<V0, V1>)>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     for v0 in g0.vertices() {
-        if !f.contains_key(&v0) {
+        if !f.contains_variable(&v0) {
             f.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
         }
     }
@@ -159,11 +167,20 @@ where
         items.get_mut(&y).unwrap().push((x, y, dir));
     }
 
+    let mut removed = Lists::<V0, V1>::new();
+
     while !worklist.is_empty() {
         let (x, y, dir) = worklist.iter().cloned().next().unwrap();
         worklist.remove(&(x.clone(), y.clone(), dir));
 
-        if arc_reduce(x.clone(), y, dir, &mut f, &g1) {
+        if let Some(lists) = arc_reduce(x.clone(), y, dir, &mut f, &g1) {
+            for (k, v) in lists {
+                if removed.contains_variable(&k) {
+                    removed.get_mut(&k).unwrap().merge(&v);
+                } else {
+                    removed.insert(k, v);
+                }
+            }
             // list of x changed, was the empty list derived?
             if f.get(&x).unwrap().is_empty() {
                 return None;
@@ -174,33 +191,34 @@ where
             }
         }
     }
-    Some(f)
+    Some((f, removed))
 }
 
 /// A modification of `ac3_precolour` that is initialized with a list of all nodes
 /// of g1 for each node in g0.
 pub fn ac3<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     ac3_precolour(g0, g1, Lists::new())
 }
 
-// Implementation of the arc-reduce operation from ac3.
-// Returns true, if the list of x was reduced, false otherwise.
+// Implementation of the arc-reduce operation from ac3.  Returns None, if the
+// list of x was not reduced, otherwise the removed elements are returned.
 fn arc_reduce<V0, V1>(
     x: V0,
     y: V0,
     dir: bool,
     f: &mut Lists<V0, V1>,
     g1: &AdjacencyList<V1>,
-) -> bool
+) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     let mut changed = false;
+    let mut removed = Lists::<V0, V1>::new();
     for vx in f.get(&x).unwrap().clone().iter() {
         let mut is_possible = false;
         for vy in f.get(&y).unwrap().iter() {
@@ -217,10 +235,19 @@ where
 
         if !is_possible {
             f.get_mut(&x).unwrap().remove(&vx);
+            if removed.contains_variable(&x) {
+                removed.get_mut(&x).unwrap().insert(vx.clone());
+            } else {
+                removed.insert(x.clone(), list![vx.clone()]);
+            }
             changed = true;
         }
     }
-    changed
+    if changed {
+        Some(removed)
+    } else {
+        None
+    }
 }
 
 /// Implementation of the SAC-1 algorithm due to Bessiere and Debruyne 1997,
@@ -237,8 +264,8 @@ pub fn sac1_precolour<V0, V1>(
     lists: Lists<V0, V1>,
 ) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     let mut lists = match ac3_precolour(g0, g1, lists) {
         Some(v) => v,
@@ -279,8 +306,8 @@ where
 /// of g1 for each node in g0.
 pub fn sac1<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     sac1_precolour(g0, g1, Lists::new())
 }
@@ -288,20 +315,18 @@ where
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
 /// locally consistent. The type of local consistency is determined by the
 /// algorithm `consistency`.
-pub fn search_precolour_iterative<V0, V1, A>(
+pub fn search_precolour<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     lists: Lists<V0, V1>,
-    ac: &A,
     metrics: &mut Metrics,
 ) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
-    A: LocalConsistency<V0, V1>,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     let ac_start = Instant::now();
-    let res = ac(g0, g1, lists);
+    let res = ac3_precolour(g0, g1, lists);
     metrics.ac_time = ac_start.elapsed();
     let mut lists = res?;
 
@@ -311,7 +336,8 @@ where
     let mut vertex_list = sorted_list.iter().map(|(a, _)| a).collect::<Vec<_>>();
 
     let mut backtracked = 0;
-    let mut lists_stack = Vec::<(&V0, Lists<V0, V1>)>::new();
+    let mut removed = Vec::<(&V0, Lists<V0, V1>)>::new();
+    let mut set = Vec::<(V0, List<V1>)>::new();
 
     let search_start = Instant::now();
     let mut found = true;
@@ -320,22 +346,25 @@ where
         let l = lists.get_mut(v0).unwrap();
 
         if let Some(elem) = l.pop() {
-            lists_stack.push((v0, lists.clone()));
+            set.push((v0.clone(), lists.get(v0).unwrap().clone()));
             lists.insert(v0.clone(), list![elem.clone()]);
 
-            if let Some(res) = ac(g0, g1, lists) {
+            if let Some((res, rem)) = ac3_precolour_lists(g0, g1, lists.clone()) {
+                removed.push((v0, rem));
                 lists = res;
             } else {
-                let (v, l1) = lists_stack.pop().unwrap();
-                vertex_list.push(v);
-                lists = l1;
+                let (a, b) = set.pop().unwrap();
+                lists.insert(a, b);
+                vertex_list.push(v0);
             }
         } else {
-            if let Some((v, l1)) = lists_stack.pop() {
+            if let Some((v, l1)) = removed.pop() {
+                lists.merge(&l1);
+                let (a, b) = set.pop().unwrap();
+                lists.insert(a, b);
                 backtracked += 1;
                 vertex_list.push(v0);
                 vertex_list.push(v);
-                lists = l1;
             } else {
                 found = false;
                 break;
@@ -351,111 +380,51 @@ where
     }
 }
 
-/// Performs a backtracking-search to find a mapping from `g0` to `g1` that is
-/// locally consistent. The type of local consistency is determined by the
-/// algorithm `algo`.
-pub fn search_precolour_recursive<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    lists: Lists<V0, V1>,
-    ac: &A,
-) -> Option<Lists<V0, V1>>
-where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
-    A: LocalConsistency<V0, V1>,
-{
-    let lists = ac(g0, g1, lists)?;
-    let mut sorted_list = lists.clone().into_iter().collect::<Vec<_>>();
-    sorted_list.sort_by(|(_, l0), (_, l1)| l1.size().cmp(&l0.size()));
-    let vertex_list = sorted_list.iter().map(|(a, _)| a).collect::<Vec<_>>();
-    search_rec(g0, g1, lists, vertex_list, ac)
-}
+// /// Tries to find a mapping from `g0` to `g1` that is locally consistent.
+// /// The type of local consistency is determined by the algorithm `algo`.
+// ///
+// /// **NOTE:** This function assumes that algorithm `algo` solves the CSP.
+// ///
+// /// Returns None, if an empty list is derived for some vertex v, otherwise
+// /// singleton-arc-consistent lists are returned.
+// pub fn find_precolour<V0, V1, A>(
+//     g0: &AdjacencyList<V0>,
+//     g1: &AdjacencyList<V1>,
+//     lists: Lists<V0, V1>,
+//     algo: &A,
+// ) -> Option<Lists<V0, V1>>
+// where
+//     V0: VertexID + Debug,
+//     V1: VertexID,
+//     A: LocalConsistency<V0, V1>,
+// {
+//     println!("Start");
+//     let mut lists = algo(g0, g1, lists)?;
+//     println!("End");
 
-/// Recursive helper function.
-fn search_rec<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    f: Lists<V0, V1>,
-    mut vertex_list: Vec<&V0>,
-    ac: &A,
-) -> Option<Lists<V0, V1>>
-where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
-    A: LocalConsistency<V0, V1>,
-{
-    let v0 = if let Some(v0) = vertex_list.pop() {
-        v0
-    } else {
-        return Some(f);
-    };
-    let l = f.get(&v0).unwrap();
-    println!("v0 = {:?}", v0);
-    println!("l = {:?}", l);
+//     for v0 in g0.vertices() {
+//         println!("{:?}", v0);
+//         let list_v0 = lists.get(&v0).unwrap();
+//         if list_v0.size() > 1 {
+//             let mut found = false;
 
-    for v1 in l.iter() {
-        println!("\t v1 = {:?}", v1);
-        let list = list![v1.clone()];
+//             for v1 in list_v0.clone().iter() {
+//                 let mut lists_sac = lists.clone();
+//                 lists_sac.insert(v0.clone(), list![v1.clone()]);
 
-        let mut map = f.clone();
-        *map.get_mut(&v0).unwrap() = list;
-
-        if let Some(res) = ac(g0, g1, map) {
-            map = res;
-            if let Some(res) = search_rec(g0, g1, map, vertex_list.clone(), ac) {
-                return Some(res);
-            }
-        }
-    }
-    None
-}
-
-/// Tries to find a mapping from `g0` to `g1` that is locally consistent.
-/// The type of local consistency is determined by the algorithm `algo`.
-///
-/// **NOTE:** This function assumes that algorithm `algo` solves the CSP.
-///
-/// Returns None, if an empty list is derived for some vertex v, otherwise
-/// singleton-arc-consistent lists are returned.
-pub fn find_precolour<V0, V1, A>(
-    g0: &AdjacencyList<V0>,
-    g1: &AdjacencyList<V1>,
-    lists: Lists<V0, V1>,
-    algo: &A,
-) -> Option<Lists<V0, V1>>
-where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash,
-    A: LocalConsistency<V0, V1>,
-{
-    println!("Start");
-    let mut lists = algo(g0, g1, lists)?;
-    println!("End");
-
-    for v0 in g0.vertices() {
-        println!("{:?}", v0);
-        let list_v0 = lists.get(&v0).unwrap();
-        if list_v0.size() > 1 {
-            let mut found = false;
-
-            for v1 in list_v0.clone().iter() {
-                let mut lists_sac = lists.clone();
-                lists_sac.insert(v0.clone(), list![v1.clone()]);
-
-                if let Some(lists_res) = algo(g0, g1, lists_sac) {
-                    lists = lists_res;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
-                return None;
-            }
-        }
-    }
-    Some(lists)
-}
+//                 if let Some(lists_res) = algo(g0, g1, lists_sac) {
+//                     lists = lists_res;
+//                     found = true;
+//                     break;
+//                 }
+//             }
+//             if !found {
+//                 return None;
+//             }
+//         }
+//     }
+//     Some(lists)
+// }
 
 /// Implementation of the PC-2 algorithm by Mackworth 1977, specialized to work
 /// on graphs.
@@ -463,8 +432,8 @@ where
 /// Returns false, if an empty list is derived for some vertex v, true otherwise.
 pub fn pc2<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> bool
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     let mut lists = HashMap::<(V0, V0), Set<(V1, V1)>>::new();
     let mut worklist = HashSet::<(V0, V0, V0)>::new();
@@ -550,8 +519,8 @@ pub fn sac_opt_precolour<V0, V1>(
     lists: Lists<V0, V1>,
 ) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     let mut lists = match ac3_precolour(g0, g1, lists) {
         Some(v) => v,
@@ -615,8 +584,8 @@ where
 /// of g1 for each node in g0.
 pub fn sac_opt<V0, V1>(g0: &AdjacencyList<V0>, g1: &AdjacencyList<V1>) -> Option<Lists<V0, V1>>
 where
-    V0: Eq + Clone + Hash + Debug,
-    V1: Eq + Clone + Hash + Debug,
+    V0: VertexID + Debug,
+    V1: VertexID + Debug,
 {
     sac_opt_precolour(g0, g1, Lists::new())
 }
@@ -725,6 +694,12 @@ impl<T: Eq + Hash + Clone> List<T> {
         self.list.remove(v)
     }
 
+    pub fn merge(&mut self, v: &List<T>) {
+        for elem in v.iter() {
+            self.insert(elem.clone());
+        }
+    }
+
     pub fn pop(&mut self) -> Option<T> {
         let elemm = self.list.iter().cloned().next();
         if let Some(elem) = elemm {
@@ -741,5 +716,88 @@ impl<T: Eq + Hash> FromIterator<T> for List<T> {
         List {
             list: iter.into_iter().collect::<HashSet<_>>(),
         }
+    }
+}
+
+/// A list implemented as a wrapper around `HashSet`
+#[derive(Clone, Debug, Default)]
+pub struct Lists<V0: Eq + Hash, V1: Eq + Hash + Clone> {
+    lists: HashMap<V0, List<V1>>,
+}
+
+impl<V0: Eq + Hash + Clone, V1: Eq + Hash + Clone> Lists<V0, V1> {
+    /// Creates a new, empty set of lists.
+    pub fn new() -> Lists<V0, V1> {
+        Lists {
+            lists: HashMap::<V0, List<V1>>::new(),
+        }
+    }
+
+    /// Inserts a vertex-list pair into the map.
+    ///
+    /// If the map did not have this vertex present, [`None`] is returned.
+    ///
+    /// If the map did have this vertex present, the list is updated, and the old
+    /// list is returned. The vertex is not updated, though; this matters for
+    /// types that can be `==` without being identical.
+    pub fn insert(&mut self, v: V0, d: List<V1>) -> Option<List<V1>> {
+        self.lists.insert(v, d)
+    }
+
+    /// An iterator visiting all variable-list pairs in arbitrary order.
+    /// The iterator element type is `(&'a V0, &'a Set<V1>)`.
+    ///
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (&V0, &List<V1>)> + 'a {
+        self.lists.iter()
+    }
+
+    /// An iterator visiting all lists in arbitrary order.
+    /// The iterator element type is `&'a Set<V1>`.
+    ///
+    pub fn lists(&self) -> impl Iterator<Item = &List<V1>> {
+        self.lists.values()
+    }
+
+    pub fn variables(&self) -> impl Iterator<Item = &V0> {
+        self.lists.keys()
+    }
+
+    pub fn get(&self, v: &V0) -> Option<&List<V1>> {
+        self.lists.get(v)
+    }
+
+    pub fn get_mut(&mut self, v: &V0) -> Option<&mut List<V1>> {
+        self.lists.get_mut(v)
+    }
+
+    pub fn remove(&mut self, v: &V0, w: &V1) -> bool {
+        self.lists.get_mut(&v).unwrap().remove(w)
+    }
+
+    pub fn contains_variable(&self, v: &V0) -> bool {
+        self.lists.contains_key(v)
+    }
+
+    pub fn len(&self) -> usize {
+        self.lists.len()
+    }
+
+    pub fn merge(&mut self, other: &Lists<V0, V1>) {
+        for (k, v) in other.iter() {
+            if self.contains_variable(&k) {
+                self.get_mut(&k).unwrap().merge(&v);
+            } else {
+                self.insert(k.clone(), v.clone());
+            }
+        }
+    }
+}
+
+impl<V0: Eq + Hash, V1: Eq + Hash + Clone> IntoIterator for Lists<V0, V1> {
+    type Item = (V0, List<V1>);
+    type IntoIter = std::collections::hash_map::IntoIter<V0, List<V1>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lists.into_iter()
     }
 }

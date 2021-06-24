@@ -10,6 +10,10 @@ use std::{
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
+pub trait VertexID: Eq + Clone + Hash {}
+impl VertexID for u32 {}
+impl<T: VertexID> VertexID for Vec<T> {}
+
 /// A simple set implemented as a wrapper around Vec.
 #[derive(Clone, Debug, Default)]
 pub struct Set<T: Eq> {
@@ -158,12 +162,12 @@ impl<T: Eq> FromIterator<T> for Set<T> {
 /// adjacency lists, where the first entry and second entry contain all
 /// successors and predecessors, respectively.
 #[derive(Debug, Clone, Default)]
-pub struct AdjacencyList<T: Eq + Hash + Clone> {
+pub struct AdjacencyList<T: VertexID> {
     // Vertex -> (Out-Edges, In-Edges)
     adjacency_list: HashMap<T, (Set<T>, Set<T>)>,
 }
 
-impl<T: Eq + Hash + Clone> AdjacencyList<T> {
+impl<T: VertexID> AdjacencyList<T> {
     /// Creates an empty `AdjacencyList`.
     ///
     /// # Examples
@@ -611,7 +615,7 @@ impl<T: Eq + Hash + Clone> AdjacencyList<T> {
     }
 }
 
-impl<T: Clone + Eq + Hash + Debug> AdjacencyList<T> {
+impl<T: VertexID + Debug> AdjacencyList<T> {
     /// Prints the graph in dot format.
     pub fn to_dot(&self, output: &mut impl Write) {
         let mut s = String::from("digraph {\n");
@@ -634,7 +638,7 @@ impl<T: Clone + Eq + Hash + Debug> AdjacencyList<T> {
     // }
 }
 
-impl<T: Eq + Hash + Clone + Sync + Send> AdjacencyList<T> {
+impl<T: VertexID + Sync + Send> AdjacencyList<T> {
     /// Returns the k-ary product graph. The resulting graph uses `Vec` to represent
     /// the resulting tuples. The method uses parallelism.
     /// # Examples

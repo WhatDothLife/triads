@@ -7,7 +7,6 @@ use std::{
 
 use std::error::Error;
 use std::fmt::Debug;
-use std::hash::Hash;
 
 use clap::{App, Arg};
 
@@ -15,6 +14,7 @@ use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
+    adjacency_list::VertexID,
     consistency::{ac1_precolour, ac3_precolour, sac1_precolour, LocalConsistency},
     polymorphism::PolymorphismKind,
     triad::Triad,
@@ -334,8 +334,8 @@ struct AlgorithmRegistry;
 impl AlgorithmRegistry {
     fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
     where
-        V0: Eq + Clone + Hash + 'static + Debug,
-        V1: Eq + Clone + Hash + 'static + Debug,
+        V0: VertexID + 'static + Debug,
+        V1: VertexID + 'static + Debug,
     {
         match algo {
             "ac1" => Ok(Box::new(ac1_precolour)),

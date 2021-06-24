@@ -7,17 +7,13 @@ use std::{
     time::Instant,
 };
 
+use crate::list;
 use crate::{
     adjacency_list::AdjacencyList,
-    consistency::{search_precolour_iterative, List, Lists},
+    consistency::{search_precolour, List, Lists},
     metrics::Metrics,
 };
-use crate::{
-    consistency::{ac3_precolour, LocalConsistency},
-    list,
-};
 
-use super::consistency::search_precolour_recursive;
 use super::triad::{level, Triad};
 
 type Identity = fn(arity: &Arity, num: u32) -> Vec<Vec<Vec<u32>>>;
@@ -187,11 +183,11 @@ where
 impl<V0: Clone + Eq + Hash + Debug> TryFrom<Lists<Vec<V0>, V0>> for Polymorphism<V0> {
     type Error = &'static str;
 
-    fn try_from(mut lists: Lists<Vec<V0>, V0>) -> Result<Self, Self::Error> {
+    fn try_from(lists: Lists<Vec<V0>, V0>) -> Result<Self, Self::Error> {
         let mut map = HashMap::<Vec<V0>, V0>::new();
-        for (k, v) in lists.iter_mut() {
+        for (k, v) in lists.iter() {
             if v.size() == 1 {
-                map.insert(k.clone(), v.pop().unwrap());
+                map.insert(k.clone(), v.iter().next().unwrap().clone());
             } else {
                 println!("{:?}, {:?}", k, v);
                 return Err("Unable to construct polymorphism from the given lists");
@@ -298,10 +294,7 @@ impl PolymorphismFinder {
     /// Tries to find the configured polymorphism for graph `g` by using
     /// algorithm `algorithm` as a heuristic. Returns a searchlog that includes
     /// all the relevant metrics recorded during the search.
-    pub fn find<A>(&self, g: &AdjacencyList<u32>, algorithm: &A) -> Metrics
-    where
-        A: LocalConsistency<Vec<u32>, u32>,
-    {
+    pub fn find(&self, g: &AdjacencyList<u32>) -> Metrics {
         let mut metrics = Metrics::new();
         let indicator_start = Instant::now();
         let mut indicator = match self.arity {
@@ -326,9 +319,9 @@ impl PolymorphismFinder {
             // Only consider consider the component with vertices (u, v) where u and
             // v are on the same level.
             let mut graph = AdjacencyList::<Vec<u32>>::new();
+            let triad = Triad::try_from(g.clone()).unwrap();
             for comp in indicator.components() {
                 let v = comp.vertices().next().unwrap();
-                let triad = Triad::try_from(g.clone()).unwrap();
                 if level(v[0], &triad) == level(v[1], &triad) {
                     graph = graph.union(&comp);
                 }
@@ -343,7 +336,6 @@ impl PolymorphismFinder {
         }
 
         if self.idempotent {
-            println!("Idempotent!");
             for vec in indicator.vertices() {
                 if is_all_same(&vec) {
                     lists.insert(vec.clone(), list![vec[0]]);
@@ -353,9 +345,7 @@ impl PolymorphismFinder {
 
         metrics.indicator_time = indicator_start.elapsed();
 
-        if let Some(lists) =
-            search_precolour_iterative(&indicator, &g, lists, algorithm, &mut metrics)
-        {
+        if let Some(lists) = search_precolour(&indicator, &g, lists, &mut metrics) {
             metrics.polymorphism = Some(Polymorphism::try_from(lists).unwrap());
         }
 
@@ -412,11 +402,11 @@ impl fmt::Display for PolymorphismKind {
 /// Returns None, if `list` does not have a polymorphism of kind `kind`,
 /// otherwise a polymorphism of `list` is returned.
 pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
-    let finder = match kind {
-        PolymorphismKind::Commutative => PolymorphismFinder::new(Arity::Single(2))
-            .identity(commutative)
-            .optimize(Optimization::Commutative),
-
+    let mut finder = match kind {
+        PolymorphismKind::Commutative => {
+            { PolymorphismFinder::new(Arity::Single(2)).identity(commutative) }
+                .optimize(Optimization::Commutative)
+        }
         PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
             .identity(wnu)
             .majority(true),
@@ -428,5 +418,6 @@ pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
         PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3)).identity(wnu),
     };
 
-    finder.find(&triad.into(), &ac3_precolour)
+    finder = finder.idempotent(true);
+    finder.find(&triad.into())
 }

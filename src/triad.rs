@@ -1,6 +1,6 @@
 //! The simplest form of an orientation of a tree that is not a path.
 use std::{
-    cmp::{min, Reverse},
+    cmp::min,
     collections::HashSet,
     convert::TryFrom,
     fmt, fs,
@@ -58,10 +58,10 @@ impl Triad {
     ///
     /// Panics, if the triad already has 3 arms.
     pub fn add_arm(&mut self, arm: &str) {
-if self.0.len() == 3 {
-        panic!("Triad already has 3 arms!");
-}
-self.0.push(String::from(arm));
+        if self.0.len() == 3 {
+            panic!("Triad already has 3 arms!");
+        }
+        self.0.push(String::from(arm));
     }
 
     /// Returns `true` if the triad is a core, and `false` otherwise.  A graph G is
@@ -186,12 +186,12 @@ impl From<&Triad> for AdjacencyList<u32> {
     }
 }
 
-impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
+impl TryFrom<AdjacencyList<u32>> for Triad {
     type Error = &'static str;
 
-    fn try_from(list: AdjacencyList<T>) -> Result<Self, Self::Error> {
+    fn try_from(list: AdjacencyList<u32>) -> Result<Self, Self::Error> {
         let mut edges = list.edges().into_iter().collect::<HashSet<_>>();
-        let mut triad_vec = Vec::<String>::new();
+        let mut triad_vec = Vec::<(u32, String)>::new();
 
         for u in list.vertices() {
             if list.degree(u) == 3 {
@@ -199,20 +199,20 @@ impl<T: Eq + Hash + Clone> TryFrom<AdjacencyList<T>> for Triad {
                     if *u == v {
                         edges.remove(&(v.clone(), w.clone()));
                         let s = arm_string(w.clone(), &mut edges, String::new());
-                        triad_vec.push(String::from("0") + &s);
+                        triad_vec.push((w, String::from("0") + &s));
                     } else if *u == w {
                         edges.remove(&(v.clone(), w.clone()));
                         let s = arm_string(v.clone(), &mut edges, String::new());
-                        triad_vec.push(String::from("1") + &s);
+                        triad_vec.push((v, String::from("1") + &s));
                     }
                 }
             }
         }
 
-        triad_vec.sort_by_key(|b| Reverse(b.len()));
-        if let Some(arm1) = triad_vec.get(0) {
-            if let Some(arm2) = triad_vec.get(1) {
-                if let Some(arm3) = triad_vec.get(2) {
+        triad_vec.sort_by_key(|(i, _)| *i);
+        if let Some((_, arm1)) = triad_vec.get(0) {
+            if let Some((_, arm2)) = triad_vec.get(1) {
+                if let Some((_, arm3)) = triad_vec.get(2) {
                     return Ok(Triad::from_strs(arm1, arm2, arm3));
                 }
             }

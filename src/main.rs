@@ -11,6 +11,8 @@
 //! a tree which has a single vertex of degree 3 and otherwise only vertices of
 //! degree 2 and 1.
 
+#![feature(array_value_iter)]
+
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{fs::File, io, sync::Mutex};
@@ -95,6 +97,7 @@ fn main() {
 
     let res = match options {
         Ok(opts) => run(opts),
+
         Err(ref e) => error(&e.to_string()),
     };
 
