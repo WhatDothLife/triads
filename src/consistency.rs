@@ -348,8 +348,10 @@ where
         if let Some(elem) = l.pop() {
             set.push((v0.clone(), lists.get(v0).unwrap().clone()));
             lists.insert(v0.clone(), list![elem.clone()]);
+            println!("Setting: {:?} -> {:?}", v0, elem);
 
             if let Some((res, rem)) = ac3_precolour_lists(g0, g1, lists.clone()) {
+                println!("{:?} - removed: {:?}", v0, rem);
                 removed.push((v0, rem));
                 lists = res;
             } else {
@@ -359,6 +361,7 @@ where
             }
         } else {
             if let Some((v, l1)) = removed.pop() {
+                println!("Popped {:?} and {:?}", v, l1);
                 lists.merge(&l1);
                 let (a, b) = set.pop().unwrap();
                 lists.insert(a, b);

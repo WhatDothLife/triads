@@ -19,6 +19,7 @@ use std::{fs::File, io, sync::Mutex};
 use tripolys::{
     adjacency_list::AdjacencyList,
     configuration::{Constraint, Globals, Run, TripolysOptions},
+    consistency::{ac3_precolour, ac3_precolour_lists, Lists},
     metrics::SearchLog,
     polymorphism::find_polymorphism,
     triad::{cores_length_range, cores_nodes_range},

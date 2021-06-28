@@ -393,8 +393,8 @@ impl fmt::Display for PolymorphismKind {
             PolymorphismKind::Commutative => write!(f, "commutative"),
             PolymorphismKind::Majority => write!(f, "majority"),
             PolymorphismKind::Siggers => write!(f, "siggers"),
-            PolymorphismKind::WNU34 => write!(f, "3/4 wnu"),
-            PolymorphismKind::WNU3 => write!(f, "3 wnu"),
+            PolymorphismKind::WNU34 => write!(f, "3/4wnu"),
+            PolymorphismKind::WNU3 => write!(f, "3wnu"),
         }
     }
 }
