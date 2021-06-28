@@ -14,19 +14,17 @@
 // #![deny(missing_docs)]
 // #![deny(missing_doc_code_examples)]
 // #![deny(missing_debug_implementations)]
-#![feature(array_value_iter)]
-// #![warn(
-//     clippy::all,
-//     clippy::restriction,
-//     clippy::pedantic,
-//     clippy::nursery,
-//     clippy::cargo
-// )]
+// #![warn(clippy::correctness, clippy::pedantic, clippy::nursery)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::must_use_candidate)]
+#![allow(clippy::redundant_closure_for_method_calls)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::use_self)]
 
 pub mod adjacency_list;
 pub mod configuration;
 pub mod consistency;
-// pub mod math;
 pub mod metrics;
 pub mod polymorphism;
 pub mod triad;

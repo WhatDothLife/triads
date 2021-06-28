@@ -7,12 +7,12 @@ use std::{
     time::Instant,
 };
 
-use crate::list;
 use crate::{
     adjacency_list::AdjacencyList,
-    consistency::{search_precolour, List, Lists},
+    consistency::{List, Lists},
     metrics::Metrics,
 };
+use crate::{consistency::search_lists, list};
 
 use super::triad::{level, Triad};
 
@@ -86,7 +86,7 @@ pub fn siggers(_: &Arity, num: u32) -> Vec<Vec<Vec<u32>>> {
     vec
 }
 
-/// TODO f(x,...,x,y) = f(x,...,x,y,x) = ... = f(y,x,...,x)
+/// f(x,...,x,y) = f(x,...,x,y,x) = ... = f(y,x,...,x)
 pub fn wnu_p<T: Eq + Clone + Hash + Debug>(a: &[T], b: &[T]) -> bool {
     assert!(a.len() >= 2 && b.len() >= 2, "length must be at least 2!");
     let elem_a = wnu_elem(a);
@@ -95,8 +95,6 @@ pub fn wnu_p<T: Eq + Clone + Hash + Debug>(a: &[T], b: &[T]) -> bool {
         (WNU::Unique(x1, y1), WNU::Unique(x2, y2)) => x1 == x2 && y1 == y2,
         (WNU::Even(x), WNU::Unique(_, z)) => x == z,
         (WNU::Unique(_, y), WNU::Even(z)) => y == z,
-        (WNU::None, _) => false,
-        (_, WNU::None) => false,
         _ => false,
     }
 }
@@ -149,7 +147,7 @@ fn majority_p<T: Eq + Clone>(a: &[T], b: &[T]) -> bool {
     assert!(a.len() == 3 && b.len() == 3, "length must be equal to 3!");
     let v = major_elem(a);
     let w = major_elem(b);
-    v.clone().and(w).map(|x| x == v.unwrap()).unwrap_or(false)
+    v.clone().and(w).map_or(false, |x| x == v.unwrap())
 }
 
 /// Returns an element if it occurs more often than all others, None otherwise.
@@ -203,55 +201,53 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = String::new();
-        for (k, v) in self.map.iter() {
+        for (k, v) in &self.map {
             s.push_str(format!("{:?} -> {:?}\n", k, v).as_str());
         }
         write!(f, "{}", s)
     }
 }
 
-/// Used to create a representation of a polymorphism finder. Polymorphism
+/// Used to create a representation of a polymorphism searcher. Polymorphism
 /// settings are set using the "builder pattern" with the
-/// [`PolymorphismFinder::find`] method being the terminal method that starts a
+/// [`PolymorphismSearcher::search`] method being the terminal method that starts a
 /// depth-first-search using a given local consistency algorithm as a heuristic.
 ///
 /// **NOTE:** The mandatory "option" that one must set is `arity`. The "other"
-/// may also appear in any order (so long as the [`PolymorphismFinder::find`]
+/// may also appear in any order (so long as the [`PolymorphismSearcher::search`]
 /// method is the last method called).
 ///
 /// # Example
 ///
 /// ```no_run
 /// let graph: AdjacencyList<u32> = Triad::from("10,10,0").into();
-/// let res = PolymorphismFinder::new(Arity::Single(2))
+/// let res = PolymorphismSearcher::new(Arity::Single(2))
 ///     .identity(commutative)
 ///     .conservative(true)
-///     .find(graph, &ac3_precolour);
+///     .search(graph, &ac_3_lists);
 /// assert!(res.is_some());
 /// ```
-/// [`PolymorphismFinder::find`]: ./struct.PolymorphismFinder.html#method.find
+/// [`PolymorphismSearcher::search`]: ./struct.PolymorphismSearcher.html#method.search
 #[allow(missing_debug_implementations)]
-pub struct PolymorphismFinder {
+pub struct PolymorphismSearcher {
     arity: Arity,
     identity: Option<Identity>,
     conservative: bool,
     idempotent: bool,
     majority: bool,
-    linear: bool,
     optimization: Option<Optimization>,
 }
 
-impl PolymorphismFinder {
-    /// Constructs a new PolymorphismFinder for a polymorphism with arity
+impl PolymorphismSearcher {
+    /// Constructs a new `PolymorphismSearcher` for a polymorphism with arity
     /// `arity`.
-    pub fn new(arity: Arity) -> PolymorphismFinder {
-        PolymorphismFinder {
+    pub fn new(arity: Arity) -> PolymorphismSearcher {
+        PolymorphismSearcher {
             arity,
             identity: None,
             conservative: false,
             idempotent: false,
             majority: false,
-            linear: false,
             optimization: None,
         }
     }
@@ -263,38 +259,32 @@ impl PolymorphismFinder {
     }
 
     /// Whether the polymorphism should be conservative.
-    pub fn conservative(mut self, c: bool) -> Self {
+    pub const fn conservative(mut self, c: bool) -> Self {
         self.conservative = c;
         self
     }
 
     /// Whether the polymorphism should be idempotent.
-    pub fn idempotent(mut self, i: bool) -> Self {
+    pub const fn idempotent(mut self, i: bool) -> Self {
         self.idempotent = i;
         self
     }
 
     /// Whether the polymorphism should be a majority operation.
-    pub fn majority(mut self, m: bool) -> Self {
+    pub const fn majority(mut self, m: bool) -> Self {
         self.majority = m;
         self
     }
 
-    /// Whether the algorithm used for finding the polymorphism solves the CSP.
-    pub fn linear(mut self, l: bool) -> Self {
-        self.linear = l;
-        self
-    }
-
-    pub fn optimize(mut self, optimization: Optimization) -> Self {
+    pub const fn optimize(mut self, optimization: Optimization) -> Self {
         self.optimization = Some(optimization);
         self
     }
 
-    /// Tries to find the configured polymorphism for graph `g` by using
+    /// Searches for the configured polymorphism of graph `g` by using
     /// algorithm `algorithm` as a heuristic. Returns a searchlog that includes
     /// all the relevant metrics recorded during the search.
-    pub fn find(&self, g: &AdjacencyList<u32>) -> Metrics {
+    pub fn search(&self, g: &AdjacencyList<u32>) -> Metrics {
         let mut metrics = Metrics::new();
         let indicator_start = Instant::now();
         let mut indicator = match self.arity {
@@ -315,7 +305,7 @@ impl PolymorphismFinder {
             }
         }
 
-        if let Some(_) = &self.optimization {
+        if self.optimization.is_some() {
             // Only consider consider the component with vertices (u, v) where u and
             // v are on the same level.
             let mut graph = AdjacencyList::<Vec<u32>>::new();
@@ -331,13 +321,13 @@ impl PolymorphismFinder {
 
         if self.conservative {
             for vec in indicator.vertices() {
-                lists.insert(vec.clone(), vec.iter().cloned().collect::<List<_>>());
+                lists.insert(vec.clone(), vec.iter().copied().collect::<List<_>>());
             }
         }
 
         if self.idempotent {
             for vec in indicator.vertices() {
-                if is_all_same(&vec) {
+                if is_all_same(vec) {
                     lists.insert(vec.clone(), list![vec[0]]);
                 }
             }
@@ -345,7 +335,7 @@ impl PolymorphismFinder {
 
         metrics.indicator_time = indicator_start.elapsed();
 
-        if let Some(lists) = search_precolour(&indicator, &g, lists, &mut metrics) {
+        if let Some(lists) = search_lists(&indicator, g, lists, &mut metrics) {
             metrics.polymorphism = Some(Polymorphism::try_from(lists).unwrap());
         }
 
@@ -393,31 +383,31 @@ impl fmt::Display for PolymorphismKind {
             PolymorphismKind::Commutative => write!(f, "commutative"),
             PolymorphismKind::Majority => write!(f, "majority"),
             PolymorphismKind::Siggers => write!(f, "siggers"),
-            PolymorphismKind::WNU34 => write!(f, "3/4 wnu"),
-            PolymorphismKind::WNU3 => write!(f, "3 wnu"),
+            PolymorphismKind::WNU34 => write!(f, "3/4wnu"),
+            PolymorphismKind::WNU3 => write!(f, "3wnu"),
         }
     }
 }
 
 /// Returns None, if `list` does not have a polymorphism of kind `kind`,
 /// otherwise a polymorphism of `list` is returned.
-pub fn find_polymorphism(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
-    let mut finder = match kind {
+pub fn search(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
+    let mut searcher = match kind {
         PolymorphismKind::Commutative => {
-            { PolymorphismFinder::new(Arity::Single(2)).identity(commutative) }
+            { PolymorphismSearcher::new(Arity::Single(2)).identity(commutative) }
                 .optimize(Optimization::Commutative)
         }
-        PolymorphismKind::Majority => PolymorphismFinder::new(Arity::Single(3))
+        PolymorphismKind::Majority => PolymorphismSearcher::new(Arity::Single(3))
             .identity(wnu)
             .majority(true),
 
-        PolymorphismKind::Siggers => PolymorphismFinder::new(Arity::Single(4)).identity(siggers),
+        PolymorphismKind::Siggers => PolymorphismSearcher::new(Arity::Single(4)).identity(siggers),
 
-        PolymorphismKind::WNU34 => PolymorphismFinder::new(Arity::Dual(3, 4)).identity(wnu),
+        PolymorphismKind::WNU34 => PolymorphismSearcher::new(Arity::Dual(3, 4)).identity(wnu),
 
-        PolymorphismKind::WNU3 => PolymorphismFinder::new(Arity::Single(3)).identity(wnu),
+        PolymorphismKind::WNU3 => PolymorphismSearcher::new(Arity::Single(3)).identity(wnu),
     };
 
-    finder = finder.idempotent(true);
-    finder.find(&triad.into())
+    searcher = searcher.idempotent(true);
+    searcher.search(&triad.into())
 }

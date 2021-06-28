@@ -11,8 +11,6 @@
 //! a tree which has a single vertex of degree 3 and otherwise only vertices of
 //! degree 2 and 1.
 
-#![feature(array_value_iter)]
-
 use colored::*;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{fs::File, io, sync::Mutex};
@@ -20,7 +18,7 @@ use tripolys::{
     adjacency_list::AdjacencyList,
     configuration::{Constraint, Globals, Run, TripolysOptions},
     metrics::SearchLog,
-    polymorphism::find_polymorphism,
+    polymorphism::search,
     triad::{cores_length_range, cores_nodes_range},
 };
 
@@ -54,7 +52,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
             if let Some(polymorphism) = &options.polymorphism {
                 if let Some(ref triad) = options.triad {
                     println!("\n> Checking polymorphism...");
-                    find_polymorphism(&triad, polymorphism).print_console(&options, &triad)?;
+                    search(triad, polymorphism).print_console(&options, triad)?;
                 } else if let Some(constraint) = &options.constraint {
                     let range = options.range.unwrap();
 
@@ -80,7 +78,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                             range.start() + i as u32
                         );
                         vec.par_iter().for_each(|triad| {
-                            let res = find_polymorphism(&triad, polymorphism);
+                            let res = search(triad, polymorphism);
                             log.lock().unwrap().add(triad.clone(), res);
                         });
                         log.lock().unwrap().write()?;

@@ -29,7 +29,7 @@ impl<T: Eq> Set<T> {
     /// let set: Set<i32> = Set::new();
     /// ```
     pub fn new() -> Self {
-        Set { items: Vec::new() }
+        Self { items: Vec::new() }
     }
 
     /// Inserts a value in the set.
@@ -145,7 +145,7 @@ impl<T: Eq> Set<T> {
     /// assert!(s.is_empty());
     /// ```
     pub fn clear(&mut self) {
-        self.items.clear()
+        self.items.clear();
     }
 }
 
@@ -158,7 +158,7 @@ impl<T: Eq> FromIterator<T> for Set<T> {
 }
 
 /// An adjacency list that represents a graph, implemented as a wrapper struct
-/// around a HashMap. For each vertex the HashMap contains an ordered pair, the
+/// around a `HashMap`. For each vertex the `HashMap` contains an ordered pair, the
 /// adjacency lists, where the first entry and second entry contain all
 /// successors and predecessors, respectively.
 #[derive(Debug, Clone, Default)]
@@ -171,8 +171,6 @@ impl<T: VertexID> AdjacencyList<T> {
     /// Creates an empty `AdjacencyList`.
     ///
     /// # Examples
-    /// use tripolys::adjacency_list::AdjacencyList;
-    ///
     /// ```
     /// let graph: AdjacencyList<i32> = AdjacencyList::new();
     /// ```
@@ -198,11 +196,11 @@ impl<T: VertexID> AdjacencyList<T> {
     /// assert_eq!(graph.len(), 1);
     /// ```
     pub fn add_vertex(&mut self, x: T) -> bool {
-        if !self.has_vertex(&x) {
+        if self.has_vertex(&x) {
+            false
+        } else {
             self.adjacency_list.insert(x, (Set::new(), Set::new()));
             true
-        } else {
-            false
         }
     }
 
@@ -253,7 +251,6 @@ impl<T: VertexID> AdjacencyList<T> {
     }
 
     /// Contracts the vertex `y` with the vertex `x` so that the resulting vertex has id `x`.
-    /// TODO Contract with itself?
     ///
     /// # Examples
     ///
@@ -267,7 +264,7 @@ impl<T: VertexID> AdjacencyList<T> {
     /// ```
     pub fn contract_vertices(&mut self, x: &T, y: &T) {
         assert!(x != y, "vertex can not be contracted with itself!");
-        let (out_edges, in_edges) = self.remove_vertex(&y).unwrap();
+        let (out_edges, in_edges) = self.remove_vertex(y).unwrap();
 
         for u in in_edges.iter() {
             self.add_edge(u, x);
@@ -312,12 +309,12 @@ impl<T: VertexID> AdjacencyList<T> {
     /// assert_eq!(graph.len(), 1);
     /// ```
     pub fn add_edge(&mut self, u: &T, v: &T) -> bool {
-        if !self.has_edge(u, v) {
+        if self.has_edge(u, v) {
+            false
+        } else {
             self.adjacency_list.get_mut(u).unwrap().0.insert(v.clone());
             self.adjacency_list.get_mut(v).unwrap().1.insert(u.clone());
             true
-        } else {
-            false
         }
     }
 
@@ -410,7 +407,7 @@ impl<T: VertexID> AdjacencyList<T> {
     /// ```
     pub fn edges(&self) -> impl Iterator<Item = (T, T)> {
         self.vertices()
-            .map(|u| {
+            .flat_map(|u| {
                 self.adjacency_list
                     // get edge list of vertex
                     .get(u)
@@ -422,7 +419,6 @@ impl<T: VertexID> AdjacencyList<T> {
                     .collect::<Vec<_>>()
                     .into_iter()
             })
-            .flatten()
             .collect::<Vec<_>>()
             .into_iter()
     }
@@ -472,7 +468,7 @@ impl<T: VertexID> AdjacencyList<T> {
         let mut removed = HashSet::<T>::new();
 
         for (i, v) in vs.iter().enumerate() {
-            if removed.contains(&v) {
+            if removed.contains(v) {
                 continue;
             }
             for j in i + 1..vs.len() {
@@ -675,7 +671,7 @@ impl<T: VertexID + Sync + Send> AdjacencyList<T> {
             });
             vertices = tmp.lock().unwrap().take().unwrap();
         }
-        for vec in vertices.into_iter() {
+        for vec in vertices {
             graph.add_vertex(vec);
         }
         for _ in 0..k {
@@ -691,7 +687,7 @@ impl<T: VertexID + Sync + Send> AdjacencyList<T> {
             });
             edges = tmp.lock().unwrap().take().unwrap();
         }
-        for (u, v) in edges.into_iter() {
+        for (u, v) in edges {
             graph.add_edge(&u, &v);
         }
 
