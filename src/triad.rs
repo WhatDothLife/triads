@@ -13,7 +13,7 @@ use std::{
 use crate::{adjacency_list::AdjacencyList, configuration::Globals, list};
 use rayon::prelude::*;
 
-use super::consistency::{ac3, ac3_precolour, Lists};
+use super::consistency::{ac_3, ac_3_lists, Lists};
 
 /// A triad graph implemented as a wrapper struct around a `Vec<String>`.
 ///
@@ -74,7 +74,7 @@ impl Triad {
     /// asserteq!(true, triad.is_core());
     /// ```
     pub fn is_core(&self) -> bool {
-        for (_, v) in ac3(&self.into(), &self.into()).unwrap() {
+        for (_, v) in ac_3(&self.into(), &self.into()).unwrap() {
             if v.size() != 1 {
                 return false;
             }
@@ -105,12 +105,12 @@ impl Triad {
     }
 }
 
-/// A modification of `ac3-precolour` that restricts the domain of vertex 0 to {0}. It
+/// A modification of `ac_3_lists` that restricts the domain of vertex 0 to {0}. It
 /// is used to determine whether a partial triad is a rooted core.
 fn ac3_precolour_0(g0: &AdjacencyList<u32>, g1: &AdjacencyList<u32>) -> Option<Lists<u32, u32>> {
     let mut lists = Lists::new();
     lists.insert(0, list![0]);
-    ac3_precolour(g0, g1, lists)
+    ac_3_lists(g0, g1, lists)
 }
 
 impl fmt::Display for Triad {
@@ -134,11 +134,12 @@ impl FromStr for Triad {
         if arms.len() > 3 {
             return Err("Too many arms were given!");
         }
-        for arm in arms.iter() {
+        for arm in &arms {
             if !arm.is_empty() {
-                let res: Vec<bool> = arm.chars().map(|c| c == '0' || c == '1').collect();
-                if res.contains(&false) {
-                    return Err("Only 0s and 1s allowed!");
+                for v in arm.chars().map(|c| c == '0' || c == '1') {
+                    if !v {
+                        return Err("Only 0s and 1s allowed!");
+                    }
                 }
             }
         }
@@ -163,7 +164,7 @@ impl From<&Triad> for AdjacencyList<u32> {
 
         list.add_vertex(0);
 
-        for i in triad.0.iter() {
+        for i in &triad.0 {
             for (j, v) in i.chars().enumerate() {
                 list.add_vertex(node_id);
 
@@ -197,12 +198,12 @@ impl TryFrom<AdjacencyList<u32>> for Triad {
             if list.degree(u) == 3 {
                 for (v, w) in list.edges() {
                     if *u == v {
-                        edges.remove(&(v.clone(), w.clone()));
-                        let s = arm_string(w.clone(), &mut edges, String::new());
+                        edges.remove(&(v, w));
+                        let s = arm_string(&w, &mut edges, String::new());
                         triad_vec.push((w, String::from("0") + &s));
                     } else if *u == w {
-                        edges.remove(&(v.clone(), w.clone()));
-                        let s = arm_string(v.clone(), &mut edges, String::new());
+                        edges.remove(&(v, w));
+                        let s = arm_string(&v, &mut edges, String::new());
                         triad_vec.push((v, String::from("1") + &s));
                     }
                 }
@@ -223,25 +224,25 @@ impl TryFrom<AdjacencyList<u32>> for Triad {
 }
 
 /// Helper function that encodes a set of edges as a String of '0's and '1's.
-fn arm_string<T>(u: T, vec: &mut HashSet<(T, T)>, mut s: String) -> String
+fn arm_string<T>(u: &T, vec: &mut HashSet<(T, T)>, mut s: String) -> String
 where
     T: Eq + Hash + Clone,
 {
-    for (v, w) in vec.clone().iter() {
-        if u == *v {
+    for (v, w) in &vec.clone() {
+        if u == v {
             s.push('0');
             vec.remove(&(v.clone(), w.clone()));
-            return arm_string(w.clone(), vec, s);
-        } else if u == *w {
+            return arm_string(w, vec, s);
+        } else if u == w {
             s.push('1');
             vec.remove(&(v.clone(), w.clone()));
-            return arm_string(v.clone(), vec, s);
+            return arm_string(v, vec, s);
         }
     }
     s
 }
 
-/// Returns all arms with maximal length max_len that are rooted cores. For each
+/// Returns all arms with maximal length `max_len` that are rooted cores. For each
 /// index i the `Vec` at position i holds all rooted core arms of
 /// length i (`Vec` at index 0 is empty).
 fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
@@ -259,7 +260,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
                 .collect();
             arm_list_len = arms;
         } else if let Ok(mut file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
-            for arm in last.iter() {
+            for arm in &last {
                 arm_list_len.push(format!("{}{}", '0', arm.clone()));
                 arm_list_len.push(format!("{}{}", '1', arm.clone()));
             }
@@ -272,7 +273,6 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
                     triad.add_arm(arm);
 
                     if triad.is_rooted_core() {
-                        println!("Adding {:?} to armlist!", triad);
                         if let Err(e) = writeln!(file, "{}", arm) {
                             eprintln!("Couldn't write to file: {}", e);
                         }
@@ -285,7 +285,7 @@ fn rooted_core_arms(max_len: u32) -> Vec<Vec<String>> {
             panic!("Could not create file: {}", &path);
         };
         last = arm_list_len.clone();
-        arm_list.push(arm_list_len)
+        arm_list.push(arm_list_len);
     }
     arm_list
 }
@@ -325,7 +325,7 @@ impl Cache {
         let path = format!("{}/nodes/pairs_{}", Globals::get().data, num);
 
         if let Ok(pairs_vec) = FileParser::read_pairs(&path) {
-            for pair in pairs_vec.into_iter() {
+            for pair in pairs_vec {
                 self.pairs.insert(pair);
             }
         } else if let Ok(file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
@@ -358,9 +358,9 @@ impl Cache {
                 }
             });
             let pairs = pairs_locked.lock().unwrap().take().unwrap();
-            pairs.iter().for_each(|&pair| {
-                self.pairs.insert(pair);
-            });
+            for pair in &pairs {
+                self.pairs.insert(*pair);
+            }
         } else {
             panic!("Could not create file: {}", &path);
         }
@@ -416,10 +416,9 @@ impl Constraint {
                 let mut pairs = Vec::<[u32; 2]>::new();
                 if num < 4 {
                     return pairs;
-                } else {
-                    for i in ((num as f32 / 2.0).ceil() - 1.0) as u32..num - 2 {
-                        pairs.push([i, num - i - 2]);
-                    }
+                }
+                for i in ((num as f32 / 2.0).ceil() - 1.0) as u32..num - 2 {
+                    pairs.push([i, num - i - 2]);
                 }
                 pairs
             }
@@ -434,7 +433,7 @@ impl Constraint {
         }
     }
 
-    fn max_armlength(&self, num: u32) -> u32 {
+    const fn max_armlength(&self, num: u32) -> u32 {
         match self {
             Constraint::Nodes => num - 3,
             Constraint::Length => num,
@@ -495,13 +494,13 @@ fn cores(num: u32, cons: &Constraint) -> Vec<Triad> {
 }
 
 fn _cores(arm_list: &[Vec<String>], cache: &mut Cache, num: u32, cons: &Constraint) -> Vec<Triad> {
-    cache.populate_to(num, &arm_list, &cons);
+    cache.populate_to(num, arm_list, cons);
 
     let triadlist = Mutex::new(Some(Vec::<Triad>::new()));
     let path = format!("{}/{}/cores_{}", Globals::get().data, cons, num);
 
     if let Ok(triad_vec) = FileParser::read_triads(&path) {
-        for triad in triad_vec.into_iter() {
+        for triad in triad_vec {
             triadlist.lock().unwrap().as_mut().unwrap().push(triad);
         }
     } else if let Ok(file) = fs::OpenOptions::new().append(true).create(true).open(&path) {
@@ -513,7 +512,7 @@ fn _cores(arm_list: &[Vec<String>], cache: &mut Cache, num: u32, cons: &Constrai
                     for (c, arm3) in arm_list[*k as usize].iter().enumerate() {
                         let mut count = 0;
 
-                        for arm in [arm1, arm2, arm3].iter() {
+                        for arm in &[arm1, arm2, arm3] {
                             if arm.starts_with('1') {
                                 count += 1;
                             }
@@ -523,19 +522,14 @@ fn _cores(arm_list: &[Vec<String>], cache: &mut Cache, num: u32, cons: &Constrai
                         }
                         if cache.cached((*i, a), (*j, b), (*k, c)) {
                             continue;
-                        } else {
-                            let triad = Triad::from_strs(arm1, arm2, arm3);
-                            if triad.is_core() {
-                                triadlist.lock().unwrap().as_mut().unwrap().push(triad);
-                                if let Err(e) = writeln!(
-                                    file_locked.lock().unwrap(),
-                                    "{},{},{}",
-                                    arm1,
-                                    arm2,
-                                    arm3
-                                ) {
-                                    eprintln!("Could not write to file: {}", e);
-                                }
+                        }
+                        let triad = Triad::from_strs(arm1, arm2, arm3);
+                        if triad.is_core() {
+                            triadlist.lock().unwrap().as_mut().unwrap().push(triad);
+                            if let Err(e) =
+                                writeln!(file_locked.lock().unwrap(), "{},{},{}", arm1, arm2, arm3)
+                            {
+                                eprintln!("Could not write to file: {}", e);
                             }
                         }
                     }
@@ -582,13 +576,10 @@ struct FileParser;
 impl FileParser {
     fn read_triads(path: &str) -> Result<Vec<Triad>, io::Error> {
         let file = fs::read(&path)?;
-        let triads: Vec<String> = String::from_utf8_lossy(&file)
-            .split_terminator('\n')
-            .map(|x| x.into())
-            .collect();
 
-        Ok(triads
-            .into_iter()
+        Ok(String::from_utf8_lossy(&file)
+            .split_terminator('\n')
+            .map(|x| x.to_string())
             .map(|t| Triad(t.split(',').map(|x| x.into()).collect::<Vec<_>>()))
             .collect::<Vec<_>>())
     }
@@ -640,9 +631,8 @@ pub fn level(v: u32, t: &Triad) -> i32 {
         if count <= (arm.len() as u32) {
             level = level_arm(count, &arm);
             break;
-        } else {
-            count -= arm.len() as u32;
         }
+        count -= arm.len() as u32;
     }
     level
 }

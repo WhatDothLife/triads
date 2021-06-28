@@ -46,7 +46,7 @@ impl SearchLog {
 
 /// Metrics is a struct which allows to store some information about
 /// polymorphism search.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Metrics {
     pub backtracked: u32,
     pub indicator_time: Duration,
@@ -88,14 +88,14 @@ impl Metrics {
     pub fn print_console(&self, options: &TripolysOptions, triad: &Triad) -> Result<(), Error> {
         if self.polymorphism.is_some() {
             let msg = format!(
-                "\t✔ {} does have a {} polymorphism!\n",
+                "\t\u{2714} {} does have a {} polymorphism!\n",
                 triad,
                 options.polymorphism.as_ref().unwrap()
             );
             println!("{}", msg.green());
         } else {
             let msg = format!(
-                "\t✘ {} doesn't have a {} polymorphism!\n",
+                "\t\u{2718} {} doesn't have a {} polymorphism!\n",
                 triad,
                 options.polymorphism.as_ref().unwrap()
             );

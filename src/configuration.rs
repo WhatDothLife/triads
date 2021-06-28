@@ -15,7 +15,7 @@ use std::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
     adjacency_list::VertexID,
-    consistency::{ac1_precolour, ac3_precolour, sac1_precolour, LocalConsistency},
+    consistency::{ac_1_lists, ac_3_lists, sac_1_lists, LocalConsistency},
     polymorphism::PolymorphismKind,
     triad::Triad,
 };
@@ -201,18 +201,14 @@ impl TripolysOptions {
         } else {
             None
         };
-        let dot = if let Some(v) = args.value_of("dot") {
-            Some(v.into())
-        } else {
-            None
-        };
+        let dot = args.value_of("dot").map(|v| v.into());
         let polymorphism = if let Some(p) = args.value_of("polymorphism") {
-            Some(PolymorphismRegistry::get(&p)?)
+            Some(PolymorphismRegistry::get(p)?)
         } else {
             None
         };
         let algorithm = if let Some(a) = args.value_of("algorithm") {
-            Some(AlgorithmRegistry::get::<Vec<u32>, u32>(&a)?)
+            Some(AlgorithmRegistry::get::<Vec<u32>, u32>(a)?)
         } else {
             None
         };
@@ -271,7 +267,7 @@ impl Display for Constraint {
 }
 
 impl Constraint {
-    pub fn identity(&self) -> &str {
+    pub const fn identity(&self) -> &str {
         match self {
             Constraint::Length => "maximal armlength",
             Constraint::Nodes => "node-number",
@@ -284,12 +280,6 @@ pub struct Globals {
     pub data: String,
 }
 
-impl Globals {
-    pub fn new(data: &str) -> Self {
-        Globals { data: data.into() }
-    }
-}
-
 lazy_static! {
     static ref GLOBALS: RwLock<Option<Globals>> = RwLock::new(Some(Globals {
         data: String::new()
@@ -297,6 +287,10 @@ lazy_static! {
 }
 
 impl Globals {
+    pub fn new(data: &str) -> Self {
+        Globals { data: data.into() }
+    }
+
     pub fn get() -> impl Deref<Target = Globals> {
         struct Guard(RwLockReadGuard<'static, Option<Globals>>);
         impl Deref for Guard {
@@ -316,11 +310,7 @@ impl Globals {
 fn parse_range(s: &str) -> Result<RangeInclusive<u32>, OptionsError> {
     let v = s.split('-').collect::<Vec<_>>();
     let begin = v.get(0).unwrap().parse::<u32>().unwrap();
-    let end = if let Some(s) = v.get(1) {
-        s.parse::<u32>().unwrap()
-    } else {
-        begin
-    };
+    let end = v.get(1).map_or(begin, |s| s.parse::<u32>().unwrap());
     let r = begin..=end;
     if r.is_empty() {
         Err(OptionsError::EmptyRange)
@@ -338,9 +328,9 @@ impl AlgorithmRegistry {
         V1: VertexID + 'static + Debug,
     {
         match algo {
-            "ac1" => Ok(Box::new(ac1_precolour)),
-            "ac3" => Ok(Box::new(ac3_precolour)),
-            "sac1" => Ok(Box::new(sac1_precolour)),
+            "ac1" => Ok(Box::new(ac_1_lists)),
+            "ac3" => Ok(Box::new(ac_3_lists)),
+            "sac1" => Ok(Box::new(sac_1_lists)),
             // "pc2" => Ok(Box::new(pc2)),
             &_ => Err(OptionsError::AlgorithmNotFound),
         }
