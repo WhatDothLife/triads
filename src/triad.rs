@@ -28,35 +28,14 @@ use super::consistency::{ac_3, ac_3_lists, Lists};
 pub struct Triad(Vec<String>);
 
 impl Triad {
-    /// Creates a new empty `Triad`.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    /// ```
-    /// let t = Triad::new();
-    /// ```
     pub fn new() -> Triad {
         Triad(Vec::<String>::new())
     }
 
-    /// Creates a new `Triad` from `str`s.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage:
-    /// ```
-    /// let t = Triad::from("0", "1", "00");
-    /// ```
     pub fn from_strs(a: &str, b: &str, c: &str) -> Triad {
         Triad(vec![a.into(), b.into(), c.into()])
     }
 
-    /// Adds an arm to the triad.
-    ///
-    /// # Panics
-    ///
-    /// Panics, if the triad already has 3 arms.
     pub fn add_arm(&mut self, arm: &str) {
         if self.0.len() == 3 {
             panic!("Triad already has 3 arms!");
@@ -64,15 +43,6 @@ impl Triad {
         self.0.push(String::from(arm));
     }
 
-    /// Returns `true` if the triad is a core, and `false` otherwise.  A graph G is
-    /// called a core if every endomorphism of G is an automorphism.
-    ///
-    /// # Examples
-    /// ```
-    /// let triad = Triad::from_strs("1000", "11", "0");
-    ///
-    /// asserteq!(true, triad.is_core());
-    /// ```
     pub fn is_core(&self) -> bool {
         for (_, v) in ac_3(&self.into(), &self.into()).unwrap() {
             if v.size() != 1 {
@@ -82,21 +52,9 @@ impl Triad {
         true
     }
 
-    /// Returns `true` if the triad is a rooted core, and `false` otherwise.
-    ///
-    /// A rooted core is a triad for which id is the only automorphism, if you restrict
-    /// vertex 0 to be mapped to itself.
-    ///
-    /// # Examples
-    /// ```
-    /// let t = Triad::new();
-    /// t.add_arm("100");
-    /// asserteq!(false, t.is_core());
-    /// asserteq!(true, t.is_rooted_core());
-    /// ```
     pub fn is_rooted_core(&self) -> bool {
-        let map = ac3_precolour_0(&self.into(), &self.into()).unwrap();
-        for (_, v) in map {
+        let res = ac3_precolour_0(&self.into(), &self.into()).unwrap();
+        for (_, v) in res {
             if v.size() != 1 {
                 return false;
             }

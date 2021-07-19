@@ -12,7 +12,7 @@ use crate::{
     consistency::{List, Lists},
     metrics::Metrics,
 };
-use crate::{consistency::search_lists, list};
+use crate::{consistency::backtrack_search_lists, list};
 
 use super::triad::{level, Triad};
 
@@ -281,9 +281,9 @@ impl PolymorphismSearcher {
         self
     }
 
-    /// Searches for the configured polymorphism of graph `g` by using
-    /// algorithm `algorithm` as a heuristic. Returns a searchlog that includes
-    /// all the relevant metrics recorded during the search.
+    /// Searches for the configured polymorphism of graph `g` by using algorithm
+    /// `algorithm` as a heuristic. Returns all the relevant metrics recorded
+    /// during the search.
     pub fn search(&self, g: &AdjacencyList<u32>) -> Metrics {
         let mut metrics = Metrics::new();
         let indicator_start = Instant::now();
@@ -335,7 +335,7 @@ impl PolymorphismSearcher {
 
         metrics.indicator_time = indicator_start.elapsed();
 
-        if let Some(lists) = search_lists(&indicator, g, lists, &mut metrics) {
+        if let Some(lists) = backtrack_search_lists(&indicator, g, lists, &mut metrics) {
             metrics.polymorphism = Some(Polymorphism::try_from(lists).unwrap());
         }
 

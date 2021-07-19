@@ -21,13 +21,6 @@ pub struct Set<T: Eq> {
 }
 
 impl<T: Eq> Set<T> {
-    /// Creates an empty `Set`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let set: Set<i32> = Set::new();
-    /// ```
     pub fn new() -> Self {
         Self { items: Vec::new() }
     }
@@ -37,32 +30,12 @@ impl<T: Eq> Set<T> {
     /// If the set did not have this value present, `true` is returned.
     ///
     /// If the set did have this value present, `false` is returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut set = Set::new();
-    ///
-    /// assert_eq!(set.insert(2), true);
-    /// assert_eq!(set.insert(2), false);
-    /// assert_eq!(set.len(), 1);
-    /// ```
     pub fn insert(&mut self, x: T) {
         self.items.push(x);
     }
 
     /// Removes a value from the set, returning `true` if the key was previously
     /// in the set, `false` otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut set = Set::new();
-    /// set.insert(1, "a");
-    ///
-    /// assert!(set.remove(&1));
-    /// assert!(!set.remove(&1));
-    /// ```
     pub fn remove(&mut self, x: &T) -> bool {
         let mut res = false;
         self.items
@@ -71,79 +44,27 @@ impl<T: Eq> Set<T> {
     }
 
     /// Returns `true` if the set contains the vertex with the given value.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut s = Set::new();
-    /// assert!(!s.contains(1));
-    ///
-    /// s.insert(1);
-    /// assert!(s.contains(1));
-    /// ```
     pub fn contains(&self, x: &T) -> bool {
         self.items.contains(x)
     }
 
     /// Returns the number of elements in the set.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut s = Set::new();
-    /// s.insert(1);
-    /// s.insert(2);
-    ///
-    /// assert_eq!(s.size(), 2);
-    /// ```
     pub fn size(&self) -> usize {
         self.items.len()
     }
 
     /// An iterator visiting all elements in arbitrary order.
     /// The iterator element type is `(&'a T)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut set = Set::new();
-    /// set.insert(1);
-    /// set.insert(2);
-    /// set.insert(3);
-    ///
-    /// for v in set.iter() {
-    ///     println!("vertex: {}", v);
-    /// }
-    /// ```
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
         self.items.iter()
     }
 
     /// Returns `true` if the set contains no elements.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut s = Set::new();
-    /// assert!(s.is_empty());
-    ///
-    /// s.insert(1);
-    /// assert!(!s.is_empty());
-    /// ```
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     /// Clears the set, removing all values.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut s = Set::new();
-    /// s.insert(1);
-    /// s.clear(1);
-    /// assert!(s.is_empty());
-    /// ```
     pub fn clear(&mut self) {
         self.items.clear();
     }
@@ -162,19 +83,14 @@ impl<T: Eq> FromIterator<T> for Set<T> {
 /// adjacency lists, where the first entry and second entry contain all
 /// successors and predecessors, respectively.
 #[derive(Debug, Clone, Default)]
-pub struct AdjacencyList<T: VertexID> {
+pub struct AdjacencyList<V: VertexID> {
     // Vertex -> (Out-Edges, In-Edges)
-    adjacency_list: HashMap<T, (Set<T>, Set<T>)>,
+    adjacency_list: HashMap<V, (Set<V>, Set<V>)>,
 }
 
-impl<T: VertexID> AdjacencyList<T> {
+impl<V: VertexID> AdjacencyList<V> {
     /// Creates an empty `AdjacencyList`.
-    ///
-    /// # Examples
-    /// ```
-    /// let graph: AdjacencyList<i32> = AdjacencyList::new();
-    /// ```
-    pub fn new() -> AdjacencyList<T> {
+    pub fn new() -> AdjacencyList<V> {
         AdjacencyList {
             adjacency_list: HashMap::new(),
         }
@@ -185,48 +101,28 @@ impl<T: VertexID> AdjacencyList<T> {
     /// If the graph did not have this vertex present, `true` is returned.
     ///
     /// If the graph did have this vertex present, `false` is returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    ///
-    /// assert_eq!(graph.add_vertex(2), true);
-    /// assert_eq!(graph.add_vertex(2), false);
-    /// assert_eq!(graph.len(), 1);
-    /// ```
-    pub fn add_vertex(&mut self, x: T) -> bool {
-        if self.has_vertex(&x) {
+    pub fn add_vertex(&mut self, v: V) -> bool {
+        if self.has_vertex(&v) {
             false
         } else {
-            self.adjacency_list.insert(x, (Set::new(), Set::new()));
+            self.adjacency_list.insert(v, (Set::new(), Set::new()));
             true
         }
     }
 
     /// Removes a vertex from the graph, returning the ordered pair of adjacency
     /// lists if the vertex was previously in the graph.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    /// graph.add_vertex(1);
-    ///
-    /// assert!(graph.remove(&1).is_some());
-    /// assert!(graph.remove(&1).is_none());
-    /// ```
-    pub fn remove_vertex(&mut self, x: &T) -> Option<(Set<T>, Set<T>)> {
+    pub fn remove_vertex(&mut self, v: &V) -> Option<(Set<V>, Set<V>)> {
         // remove vertex
-        if let Some((out_edges, in_edges)) = self.adjacency_list.remove(x) {
+        if let Some((out_edges, in_edges)) = self.adjacency_list.remove(v) {
             // remove vertex from out-edge list of other vertices
             for u in in_edges.iter() {
-                self.adjacency_list.get_mut(u).unwrap().0.remove(x);
+                self.adjacency_list.get_mut(u).unwrap().0.remove(v);
             }
 
             // remove vertex from in-edge list of other vertices
             for u in out_edges.iter() {
-                self.adjacency_list.get_mut(u).unwrap().1.remove(x);
+                self.adjacency_list.get_mut(u).unwrap().1.remove(v);
             }
 
             Some((out_edges, in_edges))
@@ -236,60 +132,39 @@ impl<T: VertexID> AdjacencyList<T> {
     }
 
     /// Returns `true` if the graph contains the given vertex, false otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut g = AdjacencyList::new();
-    /// g.add_vertex(1);
-    ///
-    /// assert!(!g.has_vertex(&2));
-    /// assert!(g.has_vertex(&1));
-    /// ```
-    pub fn has_vertex(&self, v: &T) -> bool {
+    pub fn has_vertex(&self, v: &V) -> bool {
         self.adjacency_list.contains_key(v)
     }
 
     /// Contracts the vertex `y` with the vertex `x` so that the resulting vertex has id `x`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut g = AdjacencyList::new();
-    /// g.add_vertex(1);
-    /// g.add_vertex(2);
-    ///
-    /// assert!(!g.has_vertex(&1));
-    /// assert!(g.has_vertex(&1));
-    /// ```
-    pub fn contract_vertices(&mut self, x: &T, y: &T) {
-        assert!(x != y, "vertex can not be contracted with itself!");
-        let (out_edges, in_edges) = self.remove_vertex(y).unwrap();
+    pub fn contract_vertices(&mut self, u: &V, v: &V) {
+        assert!(u != v, "vertex can not be contracted with itself!");
+        let (out_edges, in_edges) = self.remove_vertex(v).unwrap();
 
-        for u in in_edges.iter() {
-            self.add_edge(u, x);
+        for w in in_edges.iter() {
+            self.add_edge(w, u);
         }
 
-        for u in out_edges.iter() {
-            self.add_edge(x, u);
+        for w in out_edges.iter() {
+            self.add_edge(u, w);
         }
     }
 
     /// Returns the total count of neighboring vertices of the vertex `x`.
-    pub fn degree(&self, x: &T) -> usize {
-        let edges = self.adjacency_list.get(x).unwrap();
+    pub fn degree(&self, v: &V) -> usize {
+        let edges = self.adjacency_list.get(v).unwrap();
         edges.0.size() + edges.1.size()
     }
 
     /// Returns the total count of outgoing edges of the vertex `x`.
-    pub fn out_degree(&self, x: &T) -> usize {
-        let edges = self.adjacency_list.get(x).unwrap();
+    pub fn out_degree(&self, v: &V) -> usize {
+        let edges = self.adjacency_list.get(v).unwrap();
         edges.0.size()
     }
 
     /// Returns the total count of incoming edges of the vertex `x`.
-    pub fn in_degree(&self, x: &T) -> usize {
-        let edges = self.adjacency_list.get(x).unwrap();
+    pub fn in_degree(&self, v: &V) -> usize {
+        let edges = self.adjacency_list.get(v).unwrap();
         edges.1.size()
     }
 
@@ -298,17 +173,7 @@ impl<T: VertexID> AdjacencyList<T> {
     /// If the graph did not have this edge present, `true` is returned.
     ///
     /// If the graph did have this edge present, `false` is returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    ///
-    /// assert_eq!(graph.add_vertex(2), true);
-    /// assert_eq!(graph.add_vertex(2), false);
-    /// assert_eq!(graph.len(), 1);
-    /// ```
-    pub fn add_edge(&mut self, u: &T, v: &T) -> bool {
+    pub fn add_edge(&mut self, u: &V, v: &V) -> bool {
         if self.has_edge(u, v) {
             false
         } else {
@@ -320,17 +185,7 @@ impl<T: VertexID> AdjacencyList<T> {
 
     /// Removes an edge from the graph, returning true if the edge was previously
     /// present, false otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    /// graph.add_vertex(1);
-    ///
-    /// assert!(graph.remove(&1).is_some());
-    /// assert!(graph.remove(&1).is_none());
-    /// ```
-    pub fn remove_edge(&mut self, u: &T, v: &T) -> bool {
+    pub fn remove_edge(&mut self, u: &V, v: &V) -> bool {
         if self.has_edge(u, v) {
             self.adjacency_list.get_mut(u).unwrap().0.remove(v);
             self.adjacency_list.get_mut(v).unwrap().1.remove(u);
@@ -341,71 +196,17 @@ impl<T: VertexID> AdjacencyList<T> {
     }
 
     /// Returns `true` if the graph contains the given edge, false otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut g = AdjacencyList::new();
-    /// g.add_vertex(1);
-    /// g.add_vertex(2);
-    /// g.add_edge(&1, &2);
-
-    /// assert!(!g.has_edge(&1, &1));
-    /// assert!(g.has_edge(&1, &2));
-    /// ```
-    pub fn has_edge(&self, u: &T, v: &T) -> bool {
+    pub fn has_edge(&self, u: &V, v: &V) -> bool {
         self.adjacency_list.get(u).unwrap().0.contains(v)
     }
 
     /// Returns an iterator over references to all of the vertices in the graph.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    /// let mut vertices = vec![];
-    ///
-    /// graph.add_vertex(0);
-    /// graph.add_vertex(1);
-    /// graph.add_vertex(2);
-    /// graph.add_vertex(3);
-    ///
-    /// // Iterate over vertices
-    /// for v in graph.vertices() {
-    ///     vertices.push(v);
-    /// }
-    ///
-    /// assert_eq!(vertices.len(), 4);
-    /// ```
-    pub fn vertices<'a>(&'a self) -> impl Iterator<Item = &T> + 'a {
+    pub fn vertices<'a>(&'a self) -> impl Iterator<Item = &V> + 'a {
         self.adjacency_list.keys()
     }
 
     /// Returns an iterator over all of the edges in the graph.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    /// let mut vertices = vec![];
-    ///
-    /// graph.add_vertex(0);
-    /// graph.add_vertex(1);
-    /// graph.add_vertex(2);
-    /// graph.add_vertex(3);
-    ///
-    /// graph.add_edge(&0, &1);
-    /// graph.add_edge(&2, &3);
-    ///
-    /// // Iterate over edges
-    /// for (u, v) in graph.edges() {
-    ///     vertices.push(u);
-    ///     vertices.push(v);
-    /// }
-    ///
-    /// assert_eq!(vertices.len(), 4);
-    /// ```
-    pub fn edges(&self) -> impl Iterator<Item = (T, T)> {
+    pub fn edges(&self) -> impl Iterator<Item = (V, V)> {
         self.vertices()
             .flat_map(|u| {
                 self.adjacency_list
@@ -429,50 +230,17 @@ impl<T: VertexID> AdjacencyList<T> {
     /// can be achieved by generating sets of vertices that must be contracted
     /// and then do it by hand by using the [`AdjacencyList::contract_vertices`]
     /// method.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    ///
-    /// graph.add_vertex(0);
-    /// graph.add_vertex(1);
-    /// graph.add_vertex(2);
-    /// graph.add_vertex(3);
-    ///
-    /// graph.add_edge(&0, &1);
-    /// graph.add_edge(&2, &3);
-    /// graph.add_edge(&0, &3);
-    ///
-    /// graph.contract_if(|x, y| x + 3 == y);
-    ///
-    /// let mut vertices = vec![];
-    /// let mut edges = vec![];
-    ///
-    /// // Iterate over vertices
-    /// for v in graph.vertices() {
-    ///     vertices.push(v);
-    /// }
-    ///
-    /// // Iterate over edges
-    /// for (u, v) in graph.edges() {
-    ///     edges.push((u, v));
-    /// }
-    ///
-    /// assert_eq!(vertices.len(), 3);
-    /// assert_eq!(edges.len(), 2);
-    /// ```
     /// [`AdjacencyList::contract_vertices`]: ./struct.AdjacencyList.html#method.contract_vertices
-    pub fn contract_if(&mut self, p: impl Fn(&T, &T) -> bool) {
-        let vs = self.vertices().cloned().collect::<Vec<_>>();
-        let mut removed = HashSet::<T>::new();
+    pub fn contract_if(&mut self, p: impl Fn(&V, &V) -> bool) {
+        let vertices = self.vertices().cloned().collect::<Vec<_>>();
+        let mut removed = HashSet::<V>::new();
 
-        for (i, v) in vs.iter().enumerate() {
+        for (i, v) in vertices.iter().enumerate() {
             if removed.contains(v) {
                 continue;
             }
-            for j in i + 1..vs.len() {
-                let w = vs.get(j).unwrap();
+            for j in i + 1..vertices.len() {
+                let w = vertices.get(j).unwrap();
                 if removed.contains(w) {
                     continue;
                 }
@@ -489,67 +257,30 @@ impl<T: VertexID> AdjacencyList<T> {
     ///
     /// **NOTE:** Be aware whether the two vertex sets V(G) and V(H) are
     /// disjoint or not.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph1 = AdjacencyList::new();
-    /// graph1.add_vertex(0);
-    /// graph1.add_vertex(1);
-    /// graph1.add_edge(&0, &1);
-    ///
-    /// let mut graph2 = AdjacencyList::new();
-    /// graph2.add_vertex(2);
-    /// graph2.add_vertex(3);
-    /// graph2.add_edge(&2, &3);
-    ///
-    /// let graph3 = graph1.union(&graph2);
-    ///
-    /// // Iterate over edges
-    /// for (u, v) in graph3.edges() {
-    ///     vertices.push(u);
-    ///     vertices.push(v);
-    /// }
-    ///
-    /// assert_eq!(vertices.len(), 4);
-    /// ```
-    pub fn union(&self, l: &AdjacencyList<T>) -> AdjacencyList<T> {
-        let mut m1 = self.adjacency_list.clone();
-        let m2 = l.adjacency_list.clone();
+    pub fn union(&self, l: &AdjacencyList<V>) -> AdjacencyList<V> {
+        let mut map1 = self.adjacency_list.clone();
+        let map2 = l.adjacency_list.clone();
 
-        m1.extend(m2.into_iter());
-        AdjacencyList { adjacency_list: m1 }
+        map1.extend(map2.into_iter());
+        AdjacencyList {
+            adjacency_list: map1,
+        }
     }
 
     /// Returns a vector of the (weakly connected) components of the graph.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut graph = AdjacencyList::new();
-    /// graph.add_vertex(0);
-    /// graph.add_vertex(1);
-    /// graph.add_vertex(2);
-    /// graph.add_vertex(3);
-    ///
-    /// graph.add_edge(&0, &1);
-    /// graph.add_edge(&2, &3);
-    ///
-    /// assert_eq!(graph.components().len(), 2);
-    /// ```
-    pub fn components(&self) -> Vec<AdjacencyList<T>> {
+    pub fn components(&self) -> Vec<AdjacencyList<V>> {
         let mut to_visit = self.vertices().cloned().collect::<HashSet<_>>();
-        let mut vec = Vec::new();
+        let mut components = Vec::new();
 
         while let Some(v) = to_visit.clone().iter().next() {
             let mut graph = AdjacencyList::new();
             self.components_rec(v, &mut graph, &mut to_visit);
-            vec.push(graph);
+            components.push(graph);
         }
-        vec
+        components
     }
 
-    fn components_rec(&self, v: &T, graph: &mut AdjacencyList<T>, to_visit: &mut HashSet<T>) {
+    fn components_rec(&self, v: &V, graph: &mut AdjacencyList<V>, to_visit: &mut HashSet<V>) {
         to_visit.remove(v);
         graph.add_vertex(v.clone());
 
@@ -578,15 +309,15 @@ impl<T: VertexID> AdjacencyList<T> {
     }
 
     /// Returns the component that contains the vertex `v`.
-    pub fn component(&self, v: &T) -> AdjacencyList<T> {
-        let mut visited = HashSet::<T>::new();
+    pub fn component(&self, v: &V) -> AdjacencyList<V> {
+        let mut visited = HashSet::<V>::new();
         let mut graph = AdjacencyList::new();
 
         self.component_rec(v, &mut graph, &mut visited);
         graph
     }
 
-    fn component_rec(&self, v: &T, graph: &mut AdjacencyList<T>, visited: &mut HashSet<T>) {
+    fn component_rec(&self, v: &V, graph: &mut AdjacencyList<V>, visited: &mut HashSet<V>) {
         visited.insert(v.clone());
         graph.add_vertex(v.clone());
 
@@ -661,31 +392,32 @@ impl<T: VertexID + Sync + Send> AdjacencyList<T> {
         let mut edges = vec![(vec![], vec![])];
 
         for _ in 0..k {
-            let tmp = Mutex::new(Some(vec![]));
+            let _vertices = Mutex::new(Some(vec![]));
             vertices.par_iter().for_each(|vec| {
-                for u in self.vertices().cloned() {
-                    let mut v = vec.clone();
-                    v.push(u);
-                    tmp.lock().unwrap().as_mut().unwrap().push(v);
+                for v in self.vertices().cloned() {
+                    let mut vec = vec.clone();
+                    vec.push(v);
+                    _vertices.lock().unwrap().as_mut().unwrap().push(vec);
                 }
             });
-            vertices = tmp.lock().unwrap().take().unwrap();
+            vertices = _vertices.lock().unwrap().take().unwrap();
         }
         for vec in vertices {
             graph.add_vertex(vec);
         }
+
         for _ in 0..k {
-            let tmp = Mutex::new(Some(Vec::<(Vec<T>, Vec<T>)>::new()));
-            edges.par_iter().for_each(|(v1, v2)| {
-                for (u1, u2) in self.edges() {
-                    let mut w1 = v1.clone();
-                    let mut w2 = v2.clone();
-                    w1.push(u1.clone());
-                    w2.push(u2.clone());
-                    tmp.lock().unwrap().as_mut().unwrap().push((w1, w2));
+            let _edges = Mutex::new(Some(Vec::<(Vec<T>, Vec<T>)>::new()));
+            edges.par_iter().for_each(|(u, v)| {
+                for (x, y) in self.edges() {
+                    let mut w1 = u.clone();
+                    let mut w2 = v.clone();
+                    w1.push(x.clone());
+                    w2.push(y.clone());
+                    _edges.lock().unwrap().as_mut().unwrap().push((w1, w2));
                 }
             });
-            edges = tmp.lock().unwrap().take().unwrap();
+            edges = _edges.lock().unwrap().take().unwrap();
         }
         for (u, v) in edges {
             graph.add_edge(&u, &v);

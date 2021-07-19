@@ -129,68 +129,68 @@ where
     V0: VertexID + Debug,
     V1: VertexID + Debug,
 {
-    _ac_3_lists(g0, g1, f).map(|(a, _)| a)
+    ac_3_lists_removed(g0, g1, f).map(|(a, _)| a)
 }
 
-fn _ac_3_lists<V0, V1>(
+fn ac_3_lists_removed<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
-    mut f: Lists<V0, V1>,
+    mut lists: Lists<V0, V1>,
 ) -> Option<(Lists<V0, V1>, Lists<V0, V1>)>
 where
     V0: VertexID + Debug,
     V1: VertexID + Debug,
 {
     for v0 in g0.vertices() {
-        if !f.contains_variable(v0) {
-            f.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
+        if !lists.contains_variable(v0) {
+            lists.insert(v0.clone(), g1.vertices().cloned().collect::<List<_>>());
         }
     }
 
     let edges = g0.edges();
-    let mut worklist = HashSet::<(V0, V0, bool)>::new();
+    let mut pending_list = HashSet::<(V0, V0, bool)>::new();
 
-    for (x, y) in edges {
-        worklist.insert((x.clone(), y.clone(), false));
-        worklist.insert((y, x, true));
+    for (u0, v0) in edges {
+        pending_list.insert((u0.clone(), v0.clone(), false));
+        pending_list.insert((v0, u0, true));
     }
 
-    // list of worklist items for each vertex of g0
-    // they're added to worklist, if the list of the respective vertex changed
+    // list of pending_list items for each vertex of g0
+    // they're added to pending_list, if the list of the respective vertex changed
     let mut items = HashMap::new();
 
-    for v in g0.vertices() {
-        items.insert(v.clone(), Vec::<(V0, V0, bool)>::new());
+    for v0 in g0.vertices() {
+        items.insert(v0.clone(), Vec::<(V0, V0, bool)>::new());
     }
 
-    for (x, y, dir) in worklist.iter().cloned() {
-        items.get_mut(&y).unwrap().push((x, y, dir));
+    for (u0, v0, dir) in pending_list.iter().cloned() {
+        items.get_mut(&v0).unwrap().push((u0, v0, dir));
     }
 
     let mut removed = Lists::<V0, V1>::new();
 
-    while !worklist.is_empty() {
-        let (x, y, dir) = worklist.iter().cloned().next().unwrap();
-        worklist.remove(&(x.clone(), y.clone(), dir));
+    while !pending_list.is_empty() {
+        let (u0, v0, dir) = pending_list.iter().cloned().next().unwrap();
+        pending_list.remove(&(u0.clone(), v0.clone(), dir));
 
-        if let Some(lists) = arc_reduce(&x, &y, dir, &mut f, g1) {
-            for (k, v) in lists {
-                if removed.contains_variable(&k) {
-                    removed.get_mut(&k).unwrap().merge(&v);
+        if let Some(rem) = arc_reduce(&u0, &v0, dir, &mut lists, g1) {
+            for (v, list_v) in rem {
+                if removed.contains_variable(&v) {
+                    removed.get_mut(&v).unwrap().merge(&list_v);
                 } else {
-                    removed.insert(k, v);
+                    removed.insert(v, list_v);
                 }
             }
             // list of x changed, was the empty list derived?
-            if f.get(&x).unwrap().is_empty() {
+            if lists.get(&u0).unwrap().is_empty() {
                 return None;
             }
-            for item in items.get(&x).unwrap().iter().cloned() {
-                worklist.insert(item);
+            for item in items.get(&u0).unwrap().iter().cloned() {
+                pending_list.insert(item);
             }
         }
     }
-    Some((f, removed))
+    Some((lists, removed))
 }
 
 /// A modification of `ac3_lists` that is initialized with a list of all nodes
@@ -206,8 +206,8 @@ where
 // Implementation of the arc-reduce operation from ac3.  Returns None, if the
 // list of x was not reduced, otherwise the removed elements are returned.
 fn arc_reduce<V0, V1>(
-    x: &V0,
-    y: &V0,
+    u0: &V0,
+    v0: &V0,
     dir: bool,
     f: &mut Lists<V0, V1>,
     g1: &AdjacencyList<V1>,
@@ -218,16 +218,16 @@ where
 {
     let mut changed = false;
     let mut removed = Lists::<V0, V1>::new();
-    for vx in f.get(x).unwrap().clone().iter() {
+    for u1 in f.get(u0).unwrap().clone().iter() {
         let mut is_possible = false;
-        for vy in f.get(y).unwrap().iter() {
+        for v1 in f.get(v0).unwrap().iter() {
             if dir {
-                if g1.has_edge(vy, vx) {
+                if g1.has_edge(v1, u1) {
                     is_possible = true;
                     break;
                 }
             } else {
-                if g1.has_edge(vx, vy) {
+                if g1.has_edge(u1, v1) {
                     is_possible = true;
                     break;
                 }
@@ -235,11 +235,11 @@ where
         }
 
         if !is_possible {
-            f.get_mut(x).unwrap().remove(vx);
-            if removed.contains_variable(x) {
-                removed.get_mut(x).unwrap().insert(vx.clone());
+            f.get_mut(u0).unwrap().remove(u1);
+            if removed.contains_variable(u0) {
+                removed.get_mut(u0).unwrap().insert(u1.clone());
             } else {
-                removed.insert(x.clone(), list![vx.clone()]);
+                removed.insert(u0.clone(), list![u1.clone()]);
             }
             changed = true;
         }
@@ -313,7 +313,7 @@ where
 /// Performs a depth-first-search to find a mapping from `g0` to `g1` that is
 /// locally consistent. The type of local consistency is determined by the
 /// algorithm `consistency`.
-pub fn search_lists<V0, V1>(
+pub fn backtrack_search_lists<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
     lists: Lists<V0, V1>,
@@ -340,28 +340,28 @@ where
     let search_start = Instant::now();
     let mut found = true;
     while !vertex_list.is_empty() {
-        let v0 = vertex_list.pop().unwrap();
-        let l = lists.get_mut(v0).unwrap();
+        let v = vertex_list.pop().unwrap();
+        let list_v = lists.get_mut(v).unwrap();
 
-        if let Some(elem) = l.pop() {
-            set.push((v0.clone(), lists.get(v0).unwrap().clone()));
-            lists.insert(v0.clone(), list![elem.clone()]);
+        if let Some(elem) = list_v.pop() {
+            set.push((v.clone(), lists.get(v).unwrap().clone()));
+            lists.insert(v.clone(), list![elem.clone()]);
 
-            if let Some((res, rem)) = _ac_3_lists(g0, g1, lists.clone()) {
-                removed.push((v0, rem));
+            if let Some((res, rem)) = ac_3_lists_removed(g0, g1, lists.clone()) {
+                removed.push((v, rem));
                 lists = res;
             } else {
                 let (a, b) = set.pop().unwrap();
                 lists.insert(a, b);
-                vertex_list.push(v0);
+                vertex_list.push(v);
             }
-        } else if let Some((v, l1)) = removed.pop() {
-            lists.merge(&l1);
-            let (a, b) = set.pop().unwrap();
-            lists.insert(a, b);
+        } else if let Some((w, list_w)) = removed.pop() {
+            lists.merge(&list_w);
+            let (u, list_u) = set.pop().unwrap();
+            lists.insert(u, list_u);
             backtracked += 1;
-            vertex_list.push(v0);
             vertex_list.push(v);
+            vertex_list.push(w);
         } else {
             found = false;
             break;
@@ -386,7 +386,7 @@ where
     V1: VertexID + Debug,
 {
     let mut lists = HashMap::<(V0, V0), Set<(V1, V1)>>::new();
-    let mut worklist = HashSet::<(V0, V0, V0)>::new();
+    let mut pending_list = HashSet::<(V0, V0, V0)>::new();
 
     let mut set = Set::<(V1, V1)>::new();
     for u in g1.vertices() {
@@ -410,13 +410,13 @@ where
                 lists.insert((u.clone(), v.clone()), set.clone());
             }
             for w in g0.vertices() {
-                worklist.insert((u.clone(), w.clone(), v.clone()));
+                pending_list.insert((u.clone(), w.clone(), v.clone()));
             }
         }
     }
-    while !worklist.is_empty() {
-        let (x, y, z) = worklist.iter().cloned().next().unwrap();
-        worklist.remove(&(x.clone(), y.clone(), z.clone()));
+    while !pending_list.is_empty() {
+        let (x, y, z) = pending_list.iter().cloned().next().unwrap();
+        pending_list.remove(&(x.clone(), y.clone(), z.clone()));
         if path_reduce(&x, &y, &z, &mut lists) {
             // list of x,y changed, was the empty list derived?
             if lists.get(&(x.clone(), y.clone())).unwrap().is_empty() {
@@ -424,8 +424,8 @@ where
             }
             for u in g0.vertices() {
                 if *u != x && *u != y {
-                    worklist.insert((u.clone(), x.clone(), y.clone()));
-                    worklist.insert((u.clone(), y.clone(), x.clone()));
+                    pending_list.insert((u.clone(), x.clone(), y.clone()));
+                    pending_list.insert((u.clone(), y.clone(), x.clone()));
                 }
             }
         }
@@ -545,12 +545,6 @@ pub struct List<T: Eq + Hash> {
 
 impl<T: Eq + Hash + Clone> List<T> {
     /// Creates an empty `List`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let list: List<i32> = List::new();
-    /// ```
     pub fn new() -> List<T> {
         List {
             list: HashSet::<T>::new(),
@@ -562,81 +556,28 @@ impl<T: Eq + Hash + Clone> List<T> {
     /// If the list did not have this value present, `true` is returned.
     ///
     /// If the list did have this value present, `false` is returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut list = List::new();
-    ///
-    /// assert_eq!(list.insert(2), true);
-    /// assert_eq!(list.insert(2), false);
-    /// assert_eq!(list.len(), 1);
-    /// ```
     pub fn insert(&mut self, v: T) -> bool {
         self.list.insert(v)
     }
 
     /// Returns the number of elements in the list.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut l = List::new();
-    /// l.insert(1);
-    /// l.insert(2);
-    ///
-    /// assert_eq!(l.size(), 2);
-    /// ```
     pub fn size(&self) -> usize {
         self.list.len()
     }
 
     /// An iterator visiting all elements in arbitrary order.
     /// The iterator element type is `(&'a T)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut list = List::new();
-    /// list.insert(1);
-    /// list.insert(2);
-    /// list.insert(3);
-    ///
-    /// for v in list.iter() {
-    ///     println!("vertex: {}", v);
-    /// }
-    /// ```
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.list.iter()
     }
 
     /// Returns `true` if the list contains no elements.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut l = List::new();
-    /// assert!(l.is_empty());
-    ///
-    /// l.insert(1);
-    /// assert!(!l.is_empty());
-    /// ```
     pub fn is_empty(&self) -> bool {
         self.list.is_empty()
     }
 
     /// Removes a value from the list, returning `true` if the key was previously
     /// in the list, `false` otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut list = List::new();
-    /// list.insert(1, "a");
-    ///
-    /// assert!(list.remove(&1));
-    /// assert!(!list.remove(&1));
-    /// ```
     pub fn remove(&mut self, v: &T) -> bool {
         self.list.remove(v)
     }
@@ -680,7 +621,7 @@ impl<V0: Eq + Hash + Clone, V1: Eq + Hash + Clone> Lists<V0, V1> {
 
     /// Inserts a vertex-list pair into the map.
     ///
-    /// If the map did not have this vertex present, [`None`] is returned.
+    /// If the map did not have this vertex present, `None` is returned.
     ///
     /// If the map did have this vertex present, the list is updated, and the old
     /// list is returned. The vertex is not updated, though; this matters for
