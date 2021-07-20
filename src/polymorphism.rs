@@ -396,7 +396,7 @@ impl Display for PolymorphismConfiguration {
         if self.idempotent {
             s.push_str("idempotent ");
         }
-        write!(f, "{}{} polymorphism", s, self.kind)
+        write!(f, "{}{}", s, self.kind)
     }
 }
 

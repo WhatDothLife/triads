@@ -152,7 +152,7 @@ impl TripolysOptions {
             )
             .arg(
                 Arg::with_name("list")
-                    .short("l")
+                    .short("L")
                     .long("list")
                     .value_name("FILE")
                     .help("Check the polymorphism for the triads listed in FILE")
@@ -169,7 +169,11 @@ impl TripolysOptions {
             )
             .get_matches();
 
-        if !args.is_present("triad") && !args.is_present("length") && !args.is_present("nodes") {
+        if !args.is_present("triad")
+            && !args.is_present("length")
+            && !args.is_present("nodes")
+            && !args.is_present("list")
+        {
             panic!("You must provide exactly one of the following arguments: triad, length, nodes");
         }
 

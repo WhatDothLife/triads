@@ -94,10 +94,16 @@ impl Metrics {
         triad: &Triad,
     ) -> Result<(), Error> {
         if self.polymorphism.is_some() {
-            let msg = format!("\t\u{2714} {} does have a(n) {}!\n", triad, config);
+            let msg = format!(
+                "\t\u{2714} {} does have a(n) {} polymorphism!\n",
+                triad, config
+            );
             println!("{}", msg.green());
         } else {
-            let msg = format!("\t\u{2718} {} doesn't have a(n) {}!\n", triad, config);
+            let msg = format!(
+                "\t\u{2718} {} doesn't have a(n) {} polymorphism!\n",
+                triad, config
+            );
             println!("{}", msg.red());
         };
         let total_time = self.indicator_time + self.ac_time + self.search_time;
