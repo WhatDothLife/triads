@@ -6,29 +6,24 @@
 
 ** Code
 #+begin_src rustic
+struct AlgorithmRegistry;
 
+impl AlgorithmRegistry {
+    fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
+    where
+        V0: VertexID + 'static + Debug,
+        V1: VertexID + 'static + Debug,
+    {
+        match algo {
+            "ac1" => Ok(Box::new(ac_1_lists)),
+            "ac3" => Ok(Box::new(ac_3_lists)),
+            "sac1" => Ok(Box::new(sac_1_lists)),
+            // "pc2" => Ok(Box::new(pc2)),
+            &_ => Err(OptionsError::AlgorithmNotFound),
+        }
+    }
+}
 
-    let mut g = AdjacencyList::<u32>::new();
-    g.add_vertex(0);
-    g.add_vertex(1);
-    g.add_vertex(2);
-    g.add_edge(&0, &1);
-    g.add_edge(&1, &2);
-
-    let mut h = AdjacencyList::<u32>::new();
-    h.add_vertex(0);
-    h.add_vertex(1);
-    h.add_vertex(2);
-    h.add_vertex(3);
-    h.add_edge(&0, &1);
-    h.add_edge(&1, &2);
-    h.add_edge(&3, &2);
-
-    let (mut res, rem) = ac3_precolour_lists(&g, &h, Lists::new()).unwrap();
-    println!("res: {:?}", res);
-    println!("rem: {:?}", rem);
-    res.merge(&rem);
-    println!("res: {:?}", res);
 
 // TODO So far this assumes that the vertices of the dot are in list format, e.g. [1, 2] -> [2, 3]
 /// Parses a graph from dot format into an `AdjacencyList`.
