@@ -16,7 +16,7 @@ use std::sync::{RwLock, RwLockReadGuard};
 use crate::{
     adjacency_list::VertexID,
     consistency::{ac_1_lists, ac_3_lists, sac_1_lists, LocalConsistency},
-    polymorphism::PolymorphismKind,
+    polymorphism::{PolymorphismConfiguration, PolymorphismKind},
     triad::Triad,
 };
 
@@ -31,21 +31,17 @@ pub struct TripolysOptions {
     /// Triad to operate on
     pub triad: Option<Triad>,
 
-    /// Name of the file to which the graph will be written in dot format
+    /// Name of the file the graph will be written to (in dot format)
     pub dot: Option<String>,
 
     /// Polymorphism to check
-    pub polymorphism: Option<PolymorphismKind>,
+    pub polymorphism_config: Option<PolymorphismConfiguration>,
 
-    /// Whether the polymorphism should be conservative
-    pub conservative: bool,
+    // /// Whether the polymorphism should be conservative
+    // pub conservative: bool,
 
-    /// Whether the polymorphism should be idempotent
-    pub idempotent: bool,
-
-    /// Algorithm to use
-    pub algorithm: Option<Box<dyn LocalConsistency<Vec<u32>, u32>>>,
-
+    // /// Whether the polymorphism should be idempotent
+    // pub idempotent: bool,
     /// How the program should run
     pub run: Run,
 }
@@ -129,14 +125,14 @@ impl TripolysOptions {
                     .short("i")
                     .long("idempotent")
                     .requires("polymorphism")
-                    .help("Forces the polymorphism to be idempotent"),
+                    .help("Whether the polymorphism should be idempotent"),
             )
             .arg(
                 Arg::with_name("conservative")
                     .short("c")
                     .long("conservative")
                     .requires("polymorphism")
-                    .help("Forces the polymorphism to be conservative"),
+                    .help("Whether the polymorphism should be conservative"),
             )
             .arg(
                 Arg::with_name("core")
@@ -150,8 +146,9 @@ impl TripolysOptions {
                     .short("D")
                     .long("dot")
                     .requires("triad")
+                    .value_name("NAME")
                     // .default_value("graph.dot")
-                    .help("Name of the file to which the graph will be written in dot format")
+                    .help("Write the graph to file (in dot format)")
                     .takes_value(true),
             )
             .arg(
@@ -189,8 +186,8 @@ impl TripolysOptions {
         let nodes = args.value_of("nodes").map(|s| s.to_string());
         let length = args.value_of("length").map(|s| s.to_string());
 
-        let conservative = args.value_of("conservative").is_some();
-        let idempotent = args.value_of("idempotent").is_some();
+        let conservative = args.is_present("conservative");
+        let idempotent = args.is_present("idempotent");
 
         let triad = if let Some(s) = args.value_of("triad") {
             if let Ok(triad) = s.parse::<Triad>() {
@@ -203,15 +200,19 @@ impl TripolysOptions {
         };
         let dot = args.value_of("dot").map(|v| v.into());
         let polymorphism = if let Some(p) = args.value_of("polymorphism") {
-            Some(PolymorphismRegistry::get(p)?)
+            Some(PolymorphismConfiguration::new(
+                PolymorphismRegistry::get(p)?,
+                conservative,
+                idempotent,
+            ))
         } else {
             None
         };
-        let algorithm = if let Some(a) = args.value_of("algorithm") {
-            Some(AlgorithmRegistry::get::<Vec<u32>, u32>(a)?)
-        } else {
-            None
-        };
+        // let algorithm = if let Some(a) = args.value_of("algorithm") {
+        //     Some(AlgorithmRegistry::get::<Vec<u32>, u32>(a)?)
+        // } else {
+        //     None
+        // };
 
         let run = if args.is_present("dot") {
             Run::Dot
@@ -242,10 +243,9 @@ impl TripolysOptions {
             range,
             triad,
             dot,
-            polymorphism,
-            conservative,
-            idempotent,
-            algorithm,
+            polymorphism_config: polymorphism,
+            // conservative,
+            // idempotent,
             run,
         })
     }

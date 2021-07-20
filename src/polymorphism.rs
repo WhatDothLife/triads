@@ -2,7 +2,7 @@
 use std::{
     collections::HashMap,
     convert::TryFrom,
-    fmt::{self, Debug},
+    fmt::{self, Debug, Display},
     hash::Hash,
     time::Instant,
 };
@@ -371,6 +371,35 @@ pub enum PolymorphismKind {
     WNU3,
 }
 
+pub struct PolymorphismConfiguration {
+    pub kind: PolymorphismKind,
+    pub conservative: bool,
+    pub idempotent: bool,
+}
+
+impl PolymorphismConfiguration {
+    pub fn new(kind: PolymorphismKind, conservative: bool, idempotent: bool) -> Self {
+        PolymorphismConfiguration {
+            kind,
+            conservative,
+            idempotent,
+        }
+    }
+}
+
+impl Display for PolymorphismConfiguration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = String::new();
+        if self.conservative {
+            s.push_str("conservative ");
+        }
+        if self.idempotent {
+            s.push_str("idempotent ");
+        }
+        write!(f, "{}{} polymorphism", s, self.kind)
+    }
+}
+
 /// Possible optimizations for the polymophism search
 #[derive(Debug)]
 pub enum Optimization {
@@ -389,14 +418,46 @@ impl fmt::Display for PolymorphismKind {
     }
 }
 
+impl PolymorphismSearcher {
+    pub fn get(config: &PolymorphismConfiguration) -> PolymorphismSearcher {
+        let mut searcher = match config.kind {
+            PolymorphismKind::Commutative => {
+                { PolymorphismSearcher::new(Arity::Single(2)).identity(commutative) }
+                    .optimize(Optimization::Commutative)
+            }
+
+            PolymorphismKind::Majority => PolymorphismSearcher::new(Arity::Single(3))
+                .identity(wnu)
+                .majority(true),
+
+            PolymorphismKind::Siggers => {
+                PolymorphismSearcher::new(Arity::Single(4)).identity(siggers)
+            }
+
+            PolymorphismKind::WNU34 => PolymorphismSearcher::new(Arity::Dual(3, 4)).identity(wnu),
+
+            PolymorphismKind::WNU3 => PolymorphismSearcher::new(Arity::Single(3)).identity(wnu),
+        };
+        if config.conservative {
+            searcher = searcher.conservative(true);
+        }
+
+        if config.idempotent {
+            searcher = searcher.idempotent(true);
+        }
+        searcher
+    }
+}
+
 /// Returns None, if `list` does not have a polymorphism of kind `kind`,
 /// otherwise a polymorphism of `list` is returned.
-pub fn search(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
-    let mut searcher = match kind {
+pub fn polymorphism_searcher(triad: &Triad, config: &PolymorphismConfiguration) -> Metrics {
+    let mut polymorphism_searcher = match config.kind {
         PolymorphismKind::Commutative => {
             { PolymorphismSearcher::new(Arity::Single(2)).identity(commutative) }
                 .optimize(Optimization::Commutative)
         }
+
         PolymorphismKind::Majority => PolymorphismSearcher::new(Arity::Single(3))
             .identity(wnu)
             .majority(true),
@@ -407,7 +468,13 @@ pub fn search(triad: &Triad, kind: &PolymorphismKind) -> Metrics {
 
         PolymorphismKind::WNU3 => PolymorphismSearcher::new(Arity::Single(3)).identity(wnu),
     };
+    if config.conservative {
+        polymorphism_searcher = polymorphism_searcher.conservative(true);
+    }
 
-    searcher = searcher.idempotent(true);
-    searcher.search(&triad.into())
+    if config.idempotent {
+        polymorphism_searcher = polymorphism_searcher.idempotent(true);
+    }
+
+    polymorphism_searcher.search(&triad.into())
 }

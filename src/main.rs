@@ -18,7 +18,7 @@ use tripolys::{
     adjacency_list::AdjacencyList,
     configuration::{Constraint, Globals, Run, TripolysOptions},
     metrics::SearchLog,
-    polymorphism::search,
+    polymorphism::PolymorphismSearcher,
     triad::{cores_length_range, cores_nodes_range},
 };
 
@@ -49,12 +49,14 @@ fn run(options: TripolysOptions) -> io::Result<()> {
         }
 
         Run::Polymorphism => {
-            if let Some(polymorphism) = &options.polymorphism {
+            if let Some(polymorphism) = &options.polymorphism_config {
                 if let Some(ref triad) = options.triad {
                     println!("\n> Checking polymorphism...");
-                    search(triad, polymorphism).print_console(&options, triad)?;
+                    PolymorphismSearcher::get(polymorphism)
+                        .search(&triad.into())
+                        .print_console(polymorphism, triad)?;
                 } else if let Some(constraint) = &options.constraint {
-                    let range = options.range.unwrap();
+                    let range = options.range.as_ref().unwrap();
 
                     println!("> Generating triads...");
                     let triads = match constraint {
@@ -68,7 +70,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                             "{}/{}/results/{}_{}.csv",
                             Globals::get().data,
                             options.constraint.as_ref().unwrap(),
-                            options.polymorphism.as_ref().unwrap(),
+                            options.polymorphism_config.as_ref().unwrap(),
                             range.start() + i as u32
                         )));
 
@@ -78,7 +80,10 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                             range.start() + i as u32
                         );
                         vec.par_iter().for_each(|triad| {
-                            let res = search(triad, polymorphism);
+                            let res = PolymorphismSearcher::get(
+                                &options.polymorphism_config.as_ref().unwrap(),
+                            )
+                            .search(&triad.into());
                             log.lock().unwrap().add(triad.clone(), res);
                         });
                         log.lock().unwrap().write()?;

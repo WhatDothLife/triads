@@ -6,7 +6,10 @@ use std::{
 
 use colored::Colorize;
 
-use crate::{configuration::TripolysOptions, polymorphism::Polymorphism, triad::Triad};
+use crate::{
+    polymorphism::{Polymorphism, PolymorphismConfiguration},
+    triad::Triad,
+};
 
 #[derive(Debug)]
 pub struct SearchLog {
@@ -85,20 +88,16 @@ impl Metrics {
         )
     }
 
-    pub fn print_console(&self, options: &TripolysOptions, triad: &Triad) -> Result<(), Error> {
+    pub fn print_console(
+        &self,
+        config: &PolymorphismConfiguration,
+        triad: &Triad,
+    ) -> Result<(), Error> {
         if self.polymorphism.is_some() {
-            let msg = format!(
-                "\t\u{2714} {} does have a {} polymorphism!\n",
-                triad,
-                options.polymorphism.as_ref().unwrap()
-            );
+            let msg = format!("\t\u{2714} {} does have a(n) {}!\n", triad, config);
             println!("{}", msg.green());
         } else {
-            let msg = format!(
-                "\t\u{2718} {} doesn't have a {} polymorphism!\n",
-                triad,
-                options.polymorphism.as_ref().unwrap()
-            );
+            let msg = format!("\t\u{2718} {} doesn't have a(n) {}!\n", triad, config);
             println!("{}", msg.red());
         };
         let total_time = self.indicator_time + self.ac_time + self.search_time;
