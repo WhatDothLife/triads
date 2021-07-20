@@ -132,6 +132,15 @@ where
     ac_3_lists_removed(g0, g1, f).map(|(a, _)| a)
 }
 
+/// Implementation of the AC-3 algorithm due to Mackworth 1977, specialized to
+/// find graph homomorphisms.
+///
+/// f represents a list of vertices for each vertex of g0. If there's no list
+/// specified for a vertex v, a list of all nodes of g1 is assigned to v.
+///
+/// Returns None, if an empty list is derived for some vertex v, otherwise (a,
+/// b) is returned where a is an arc-consistent map and b the sets of removed
+/// vertices for each vertex.
 fn ac_3_lists_removed<V0, V1>(
     g0: &AdjacencyList<V0>,
     g1: &AdjacencyList<V1>,
