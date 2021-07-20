@@ -232,47 +232,16 @@ where
 #+end_src
 
 * TODO
-** TODO Table
-Run the above for a larger and larger number of vertices n. Make a table which contains
-for each of the steps above the number of triads that passes the respective test, and
-the running time spent to doing the tests. In this way, we may evaluate where the
-bottleneck is in the above procedure when we want to verify Bulin’s conjecture for all
-triads up to a certain size n.
-
 ** TODO Idempotence
 Do all the above, but restrict to idempotent polymorphisms. In this case, we no longer
 restrict our attention to core triads, but consider all triads on a given number of vertices.
 
-** TODO Make PolymorphismFinder own a reference to the algorithm
 ** TODO Write tests
 ** TODO Generate all triads without constraint
 ** TODO Use with capacity
-** TODO Family Absage
-** TODO Finish Polymorphism finder
 
 * Results
-** Times
-| Knoten | sac1                            | sac_opt                         | sac1/sac_opt |
-|--------+---------------------------------+---------------------------------+--------------|
-|      4 | [20.853 us 20.857 us 20.860 us] | [25.945 us 25.964 us 25.995 us] |          0.8 |
-|      5 | [27.746 us 27.780 us 27.833 us] | [32.526 us 32.544 us 32.566 us] |         0.85 |
-|      6 | [46.482 us 46.504 us 46.535 us] | [53.890 us 53.904 us 53.917 us] |         0.86 |
-|      7 | [88.444 us 88.464 us 88.484 us] | [103.31 us 103.35 us 103.40 us] |         0.85 |
-|     13 | [397.25 us 397.46 us 397.68 us] | [454.68 us 454.99 us 455.34 us] |         0.87 |
-|        |                                 |                                 |              |
-
 ** Misc
 - Falls CSP(T) in NP => AC 1. Durchlauf Lösung bei Suche nach 3wnu
 - Falls CSP(T) in P => AC = SAC?
 - Falls CSP(T) in P => löst AC das CSP(T)?
-
-
-** Vermutungen
-- Falls für Triads AC = SAC
-- && Falls Bulin stimmt
-- löst AC CSP(T), falls CSP(T) in P.
-
-* Micha
-- Domains Data Structure
-- When should you use Set?
-- size vs. len?
