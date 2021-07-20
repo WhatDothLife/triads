@@ -19,7 +19,7 @@ use tripolys::{
     configuration::{Constraint, Globals, Run, TripolysOptions},
     metrics::SearchLog,
     polymorphism::PolymorphismSearcher,
-    triad::{cores_length_range, cores_nodes_range},
+    triad::{cores_length_range, cores_nodes_range, FileParser},
 };
 
 /// Print error message to stderr and terminate
@@ -55,6 +55,23 @@ fn run(options: TripolysOptions) -> io::Result<()> {
                     PolymorphismSearcher::get(polymorphism)
                         .search(&triad.into())
                         .print_console(polymorphism, triad)?;
+                } else if let Some(path) = &options.list {
+                    let triads = FileParser::read_triads(path)?;
+                    let log = Mutex::new(SearchLog::new(format!(
+                        "{}/results/lists/{}_{}.csv",
+                        Globals::get().data,
+                        options.polymorphism_config.as_ref().unwrap(),
+                        path
+                    )));
+
+                    triads.par_iter().for_each(|triad| {
+                        let res = PolymorphismSearcher::get(
+                            &options.polymorphism_config.as_ref().unwrap(),
+                        )
+                        .search(&triad.into());
+                        log.lock().unwrap().add(triad.clone(), res);
+                    });
+                    log.lock().unwrap().write()?;
                 } else if let Some(constraint) = &options.constraint {
                     let range = options.range.as_ref().unwrap();
 
@@ -67,7 +84,7 @@ fn run(options: TripolysOptions) -> io::Result<()> {
 
                     for (i, vec) in triads.iter().enumerate() {
                         let log = Mutex::new(SearchLog::new(format!(
-                            "{}/{}/results/{}_{}.csv",
+                            "{}//results/{}/{}_{}.csv",
                             Globals::get().data,
                             options.constraint.as_ref().unwrap(),
                             options.polymorphism_config.as_ref().unwrap(),

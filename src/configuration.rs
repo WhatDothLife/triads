@@ -14,8 +14,6 @@ use lazy_static::lazy_static;
 use std::sync::{RwLock, RwLockReadGuard};
 
 use crate::{
-    adjacency_list::VertexID,
-    consistency::{ac_1_lists, ac_3_lists, sac_1_lists, LocalConsistency},
     polymorphism::{PolymorphismConfiguration, PolymorphismKind},
     triad::Triad,
 };
@@ -31,17 +29,15 @@ pub struct TripolysOptions {
     /// Triad to operate on
     pub triad: Option<Triad>,
 
+    /// Name of the file from which the triads are read in
+    pub list: Option<String>,
+
     /// Name of the file the graph will be written to (in dot format)
     pub dot: Option<String>,
 
     /// Polymorphism to check
     pub polymorphism_config: Option<PolymorphismConfiguration>,
 
-    // /// Whether the polymorphism should be conservative
-    // pub conservative: bool,
-
-    // /// Whether the polymorphism should be idempotent
-    // pub idempotent: bool,
     /// How the program should run
     pub run: Run,
 }
@@ -52,8 +48,6 @@ pub enum OptionsError {
     EmptyRange,
     /// No polymorphism registered with that name
     PolymorphismNotFound,
-    /// No algorithm registered with that name
-    AlgorithmNotFound,
     /// Unable to parse triad from argument
     FlawedTriad,
 }
@@ -64,9 +58,6 @@ impl fmt::Display for OptionsError {
             OptionsError::EmptyRange => write!(f, "Range is empty"),
             OptionsError::PolymorphismNotFound => {
                 write!(f, "No polymorphism registered with that name")
-            }
-            OptionsError::AlgorithmNotFound => {
-                write!(f, "No algorithm registered with that name")
             }
             OptionsError::FlawedTriad => write!(f, "Unable to parse triad from argument"),
         }
@@ -160,12 +151,11 @@ impl TripolysOptions {
                     .takes_value(true),
             )
             .arg(
-                Arg::with_name("algorithm")
-                    .short("a")
-                    .long("algorithm")
-                    .value_name("NAME")
-                    .default_value("ac3")
-                    .help("Algorithm for polymorphism search")
+                Arg::with_name("list")
+                    .short("l")
+                    .long("list")
+                    .value_name("FILE")
+                    .help("Check the polymorphism for the triads listed in FILE")
                     .takes_value(true),
             )
             .arg(
@@ -185,6 +175,7 @@ impl TripolysOptions {
 
         let nodes = args.value_of("nodes").map(|s| s.to_string());
         let length = args.value_of("length").map(|s| s.to_string());
+        let list = args.value_of("list").map(|s| s.to_string());
 
         let conservative = args.is_present("conservative");
         let idempotent = args.is_present("idempotent");
@@ -208,11 +199,6 @@ impl TripolysOptions {
         } else {
             None
         };
-        // let algorithm = if let Some(a) = args.value_of("algorithm") {
-        //     Some(AlgorithmRegistry::get::<Vec<u32>, u32>(a)?)
-        // } else {
-        //     None
-        // };
 
         let run = if args.is_present("dot") {
             Run::Dot
@@ -242,6 +228,7 @@ impl TripolysOptions {
             constraint,
             range,
             triad,
+            list,
             dot,
             polymorphism_config: polymorphism,
             // conservative,
@@ -316,24 +303,6 @@ fn parse_range(s: &str) -> Result<RangeInclusive<u32>, OptionsError> {
         Err(OptionsError::EmptyRange)
     } else {
         Ok(r)
-    }
-}
-
-struct AlgorithmRegistry;
-
-impl AlgorithmRegistry {
-    fn get<V0, V1>(algo: &str) -> Result<Box<dyn LocalConsistency<V0, V1>>, OptionsError>
-    where
-        V0: VertexID + 'static + Debug,
-        V1: VertexID + 'static + Debug,
-    {
-        match algo {
-            "ac1" => Ok(Box::new(ac_1_lists)),
-            "ac3" => Ok(Box::new(ac_3_lists)),
-            "sac1" => Ok(Box::new(sac_1_lists)),
-            // "pc2" => Ok(Box::new(pc2)),
-            &_ => Err(OptionsError::AlgorithmNotFound),
-        }
     }
 }
 

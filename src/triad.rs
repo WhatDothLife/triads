@@ -529,10 +529,10 @@ impl RangeIter<u32> for std::ops::RangeInclusive<u32> {
     }
 }
 
-struct FileParser;
+pub struct FileParser;
 
 impl FileParser {
-    fn read_triads(path: &str) -> Result<Vec<Triad>, io::Error> {
+    pub fn read_triads(path: &str) -> Result<Vec<Triad>, io::Error> {
         let file = fs::read(&path)?;
 
         Ok(String::from_utf8_lossy(&file)
