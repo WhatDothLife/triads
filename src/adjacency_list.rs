@@ -357,12 +357,6 @@ impl<T: VertexID + Debug> AdjacencyList<T> {
             .write_all(s.as_bytes())
             .expect("Could not write the dot file!");
     }
-
-    // // TODO remove me when not needed anymore
-    // pub fn to_dot_file(&self, path: &str) {
-    //     let mut f = File::create(path).unwrap();
-    //     self.to_dot(&mut f);
-    // }
 }
 
 impl<T: VertexID + Sync + Send> AdjacencyList<T> {
